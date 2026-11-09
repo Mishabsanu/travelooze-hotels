@@ -53,12 +53,12 @@ function TableFilterBarComponent({
 
   return (
     <div className="w-full bg-white select-none">
-      <div className="w-full border-b border-line bg-white flex items-stretch h-9 relative z-20">
+      <div className="w-full border-b border-line bg-white flex flex-wrap items-stretch min-h-9 relative z-20">
         {filters.map((f) => (
           <div
             key={f.key}
             style={{ minWidth: f.minWidth || "140px" }}
-            className="relative border-r border-line flex items-center px-3 bg-white shrink-0"
+            className="relative h-9 border-r border-b md:border-b-0 border-line flex items-center px-3 bg-white grow md:grow-0 basis-[45%] md:basis-auto"
           >
             <select
               value={filterValues[f.key] || ""}
@@ -77,7 +77,7 @@ function TableFilterBarComponent({
           </div>
         ))}
 
-        <div className="relative flex-1 flex items-center px-3 bg-white min-w-[180px]">
+        <div className="relative h-9 flex-1 flex items-center px-3 bg-white min-w-[180px] basis-full md:basis-0 border-b md:border-b-0 border-line">
           <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0 pointer-events-none" />
           <input
             type="text"
@@ -94,7 +94,7 @@ function TableFilterBarComponent({
           )}
         </div>
 
-        <div ref={pickerRef} className="relative border-l border-line flex items-center px-3 bg-white shrink-0">
+        <div ref={pickerRef} className="relative h-9 border-l border-line flex items-center px-3 bg-white shrink-0 ml-auto">
           <button
             type="button"
             onClick={() => setPickerOpen((v) => !v)}

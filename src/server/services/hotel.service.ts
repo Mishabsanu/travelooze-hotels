@@ -95,9 +95,3 @@ export async function listAllHotelOptions(): Promise<Option[]> {
   const docs = await HotelModel.find().sort({ name: 1 }).select("name status").limit(500).lean();
   return docs.map((d) => ({ value: String(d._id), label: d.status === "active" ? d.name : `${d.name} (inactive)` }));
 }
-
-/** Hotels offered by the header switcher (every hotel the user is assigned to, active only). */
-export async function listSwitcherHotels(user: SessionUser): Promise<Option[]> {
-  const docs = await HotelModel.find({ ...assignedHotelScope(user), status: "active" }).sort({ name: 1 }).select("name").limit(500).lean();
-  return docs.map((d) => ({ value: String(d._id), label: d.name }));
-}

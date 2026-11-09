@@ -28,6 +28,7 @@ export const NAV_MODULES: NavModule[] = [
     basePath: "/dashboard/overview",
     items: [
       { label: "Overview", href: "/dashboard/overview" },
+      { label: "Analytics", href: "/dashboard/overview/analytics", permission: "report" },
       { label: "Booking Grid", href: "/dashboard/overview/booking-grid", permission: "booking", orPermission: "agent_booking" },
       { label: "Room Status", href: "/dashboard/overview/room-status", permission: "booking", orPermission: "agent_booking" },
     ],

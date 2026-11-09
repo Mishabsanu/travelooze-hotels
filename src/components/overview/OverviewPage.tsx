@@ -6,7 +6,10 @@ import { canListBookings } from "@/lib/bookingAccess";
 import { formatDay, formatINR } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { requireUser } from "@/server/auth/session";
+import { TrendCharts } from "@/components/analytics/AnalyticsViews";
+import { getAnalytics } from "@/server/services/analytics.service";
 import { getOverview } from "@/server/services/overview.service";
+import { addDays, todayIST } from "@/server/services/stay";
 
 const BOOKINGS = "/dashboard/front-office/bookings";
 const th = "px-3 py-2 border-r border-line last:border-r-0 whitespace-nowrap";
@@ -14,7 +17,9 @@ const td = "px-3 py-2 border-r border-line last:border-r-0 whitespace-nowrap";
 
 export async function OverviewPage() {
   const user = await requireUser();
-  const o = await getOverview(user);
+  const showTrends = can(user, "report", "view");
+  const today = todayIST();
+  const [o, trends] = await Promise.all([getOverview(user), showTrends ? getAnalytics(user, addDays(today, -29), today, "day") : null]);
   const bookings = canListBookings(user);
   const occ = o.totals.rooms ? Math.round((o.totals.occupied / o.totals.rooms) * 100) : 0;
   const href = (q: string) => (bookings ? `${BOOKINGS}?${q}` : undefined);
@@ -50,6 +55,18 @@ export async function OverviewPage() {
             Review — check in or mark no-show
           </Link>
         </div>
+      )}
+
+      {trends && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-slate-800">Last 30 days</h2>
+            <Link href="/dashboard/overview/analytics" className="text-xs font-bold text-brand hover:underline">
+              Open analytics (week / month / year) →
+            </Link>
+          </div>
+          <TrendCharts a={trends} />
+        </section>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">

@@ -5,7 +5,7 @@ import { can, type PermissionAction, type PermissionModule } from "@/lib/permiss
 import type { SessionUser } from "@/lib/types";
 import { connectDB } from "../db";
 import { loadSessionUser } from "../auth/session";
-import { HOTEL_COOKIE, SESSION_COOKIE } from "../auth/token";
+import { SESSION_COOKIE } from "../auth/token";
 import { AppError, errorResponse } from "./errors";
 
 type Guard = { module: PermissionModule; action: PermissionAction } | "authenticated";
@@ -36,7 +36,7 @@ export function apiHandler<P = Record<string, never>>(
     try {
       if (isCrossSiteWrite(req)) throw new AppError("Cross-site request blocked", 403);
       await connectDB();
-      const user = await loadSessionUser(req.cookies.get(SESSION_COOKIE)?.value, req.cookies.get(HOTEL_COOKIE)?.value);
+      const user = await loadSessionUser(req.cookies.get(SESSION_COOKIE)?.value);
       if (!user) throw new AppError("Your session has expired. Please sign in again.", 401);
       if (guard !== "authenticated" && !can(user, guard.module, guard.action)) {
         throw new AppError("You do not have permission to perform this action", 403);

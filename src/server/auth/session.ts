@@ -8,7 +8,7 @@ import type { SessionUser } from "@/lib/types";
 import { connectDB } from "../db";
 import { Role, type RoleDoc } from "../models/Role";
 import { User } from "../models/User";
-import { HOTEL_COOKIE, readSessionToken, SESSION_COOKIE } from "./token";
+import { readSessionToken, SESSION_COOKIE } from "./token";
 
 /** Loads the signed-in user fresh from the DB, so deactivation or role changes apply immediately. */
 export async function loadSessionUser(token?: string, activeHotel?: string): Promise<SessionUser | null> {
@@ -60,7 +60,7 @@ export async function loadSessionUser(token?: string, activeHotel?: string): Pro
 /** Current user for Server Components, deduplicated per request. */
 export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const store = await cookies();
-  return loadSessionUser(store.get(SESSION_COOKIE)?.value, store.get(HOTEL_COOKIE)?.value);
+  return loadSessionUser(store.get(SESSION_COOKIE)?.value);
 });
 
 /** For pages: sends anonymous visitors to the login screen. */

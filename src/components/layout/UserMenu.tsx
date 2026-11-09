@@ -31,7 +31,7 @@ export function UserMenu() {
 
   return (
     <div ref={ref} className="flex items-center gap-2 pl-3 border-l border-white/20 relative">
-      <div className="hidden sm:flex flex-col items-end leading-tight mr-1">
+      <div className="hidden sm:flex flex-col items-end leading-tight mr-1 max-w-[160px]">
         <span className="text-xs font-semibold text-white truncate max-w-[160px]">{user.name}</span>
         <span className="text-[10px] text-white/70 truncate max-w-[160px]">{user.roleName}</span>
       </div>

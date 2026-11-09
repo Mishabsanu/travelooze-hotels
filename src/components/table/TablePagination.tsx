@@ -23,7 +23,7 @@ function TablePaginationComponent({ page, limit, total, totalPages, itemName, on
   const end = Math.min(page * limit, total);
 
   return (
-    <div className="w-full flex items-center justify-between gap-3 px-3 py-2 text-[11px] text-slate-500 select-none bg-white border-t border-line">
+    <div className="w-full flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-[11px] text-slate-500 select-none bg-white border-t border-line">
       <span className="font-medium text-slate-600 shrink-0">
         {total === 0 ? `0 ${itemName}` : `${start} to ${end} of ${total} ${itemName}`}
       </span>

@@ -29,7 +29,7 @@ export function LeftSidebar({ modules }: { modules: NavModule[] }) {
   };
 
   return (
-    <aside className="no-print fixed left-0 top-0 bottom-0 w-[88px] bg-rail text-slate-300 flex flex-col z-50 select-none shadow-xl border-r border-rail-border">
+    <aside className="no-print hidden md:flex fixed left-0 top-0 bottom-0 w-[88px] bg-rail text-slate-300 flex-col z-50 select-none shadow-xl border-r border-rail-border">
       <div className="h-[50px] flex items-center justify-center px-2 border-b border-[#1e3a55]">
         <Link href="/dashboard" className="flex flex-col items-center justify-center w-full text-white" title={APP_NAME}>
           {/* eslint-disable-next-line @next/next/no-img-element */}

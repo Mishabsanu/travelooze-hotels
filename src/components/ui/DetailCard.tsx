@@ -16,7 +16,7 @@ interface DetailCardProps {
 export function DetailCard({ title, subtitle, badge, icon, backHref, editHref, children }: DetailCardProps) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-200 flex items-center gap-3">
+      <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex flex-wrap items-center gap-3">
         <Link href={backHref} title="Back to list" className="p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition shrink-0">
           <ArrowLeft className="w-4 h-4" />
         </Link>
@@ -40,7 +40,7 @@ export function DetailCard({ title, subtitle, badge, icon, backHref, editHref, c
           </Link>
         )}
       </div>
-      <div className="p-6 space-y-6">{children}</div>
+      <div className="p-4 sm:p-6 space-y-6">{children}</div>
     </div>
   );
 }
