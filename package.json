@@ -7,12 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed": "node --env-file=.env.local scripts/seed.mjs",
-    "typecheck": "tsc --noEmit",
-    "seed:demo": "node --env-file=.env.local scripts/seed.mjs --reset --demo"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
     "clsx": "^2.1.1",
     "formik": "^2.4.9",
     "lucide-react": "^1.70.0",

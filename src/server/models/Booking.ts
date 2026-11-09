@@ -76,7 +76,7 @@ const GuestSchema = new Schema(
     address: { type: String, default: "", trim: true },
     // Only the last 4 digits of Aadhaar are kept
     aadhaarLast4: { type: String, default: "" },
-    // File names inside UPLOAD_DIR/id-proofs (private, served only through the API)
+    // Private Cloudinary references "<resource>|<publicId>|<ext>" (served only through the API)
     idFiles: { type: [String], default: [] },
   },
   { _id: false }

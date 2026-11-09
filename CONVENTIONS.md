@@ -29,8 +29,9 @@ navy rail, compact grid tables, role-based permission matrix. When in doubt, cop
   Aadhaar files = `guest_id` (view = open, create = upload).
 - **Double booking** is blocked by the unique `(room, date)` index on `roomnights`; never write bookings without
   `holdRoomNights()`.
-- Aadhaar: only the last 4 digits are stored; files live in `UPLOAD_DIR/id-proofs` (outside `/public`) and are only
-  served by `/api/bookings/:id/id-files/:name`.
+- Aadhaar: only the last 4 digits are stored. ID files are uploaded to **Cloudinary as private (authenticated)** assets
+  (`src/server/storage.ts`) and only served by `/api/bookings/:id/id-files/:index` after the permission + hotel check.
+- Database: MongoDB Atlas, database `travelooze_hotels` (use the standard `mongodb://` string: Node on this PC cannot resolve `mongodb+srv://`).
 
 ## Notes
 
@@ -40,10 +41,11 @@ navy rail, compact grid tables, role-based permission matrix. When in doubt, cop
 
 ## Commands
 
+The database (Atlas `travelooze_hotels`) already holds the 5 default roles and the Super Admin login; there are no seed scripts.
+Add real hotels, room types, rooms, agents and staff from the app (Property, B2B Sales, Admin).
+
 ```
 npm run dev                 # http://localhost:3000
 npm run typecheck
 npm run build
-npm run seed                # roles + Super Admin (empty database only)
-npm run seed:demo           # wipe + demo hotels, rooms, 4 agents, one login per role and ~350 bookings
 ```

@@ -148,7 +148,7 @@ export async function BookingDetailPage({ params }: { params: IdParams }) {
               ) : canSeeIds ? (
                 <span className="flex flex-wrap gap-2 no-print">
                   {b.guest.idFiles.map((f, i) => (
-                    <a key={f} href={`/api/bookings/${b._id}/id-files/${f}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
+                    <a key={f} href={`/api/bookings/${b._id}/id-files/${i}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
                       <Download className="w-3 h-3" /> File {i + 1}
                     </a>
                   ))}

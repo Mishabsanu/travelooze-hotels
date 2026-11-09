@@ -26,12 +26,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
     <div className="min-h-screen grid lg:grid-cols-2 bg-canvas">
       <div className="hidden lg:flex flex-col justify-between bg-rail text-white p-12 relative overflow-hidden">
         <div className="absolute -right-24 -top-24 w-96 h-96 rounded-full bg-brand/40 blur-3xl" />
-        <div className="relative flex items-center gap-4">
-          <span className="bg-white rounded-xl px-4 py-2.5 shadow-lg">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={LOGO_SRC} alt={APP_NAME} className="h-12 w-auto" />
-          </span>
-          <span className="text-sm font-bold tracking-wider uppercase text-slate-300">{APP_NAME}</span>
+        <div className="relative">
+          {/* Logo in white straight on the dark panel (no box), same style as the side rail */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={LOGO_SRC} alt={APP_NAME} className="h-20 w-auto brightness-0 invert" />
         </div>
         <div className="relative space-y-6">
           <h1 className="text-3xl font-black leading-tight">
