@@ -84,7 +84,7 @@ export function RoomingList({ booking: b }: { booking: Booking }) {
     );
 
   return (
-    <section className="space-y-3">
+    <section id="rooming-list" className="space-y-3 scroll-mt-20">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-slate-100">
         <h2 className="text-xs font-bold text-brand uppercase tracking-wider flex items-center gap-1.5">
           <Users className="w-3.5 h-3.5" /> Rooming List

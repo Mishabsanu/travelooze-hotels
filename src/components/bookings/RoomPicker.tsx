@@ -1,7 +1,8 @@
 "use client";
 
 import { useFormikContext } from "formik";
-import { AlertCircle, BedDouble, Loader2 } from "lucide-react";
+import { AlertCircle, BedDouble, Loader2, Wand2 } from "lucide-react";
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import type { MealPlan } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
@@ -9,12 +10,21 @@ import type { AvailabilityType } from "@/lib/hotelTypes";
 import type { BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi } from "@/services/bookingApi";
+import type { GroupPlan } from "./AgentMessagePanel";
 
 /**
  * Loads free rooms whenever hotel / dates change and lets the user tick rooms.
  * Reports the loaded types upward so the summary can price the selection.
  */
-export function RoomPicker({ onTypes }: { onTypes: (types: AvailabilityType[], nights: number) => void }) {
+export function RoomPicker({
+  onTypes,
+  plan,
+  setPlan,
+}: {
+  onTypes: (types: AvailabilityType[], nights: number) => void;
+  plan?: GroupPlan;
+  setPlan?: (p: GroupPlan) => void;
+}) {
   const { values, setFieldValue, errors, touched, submitCount } = useFormikContext<BookingInput>();
   const { hotel, checkIn, checkOut } = values;
   const ready = Boolean(hotel && checkIn && checkOut && checkOut > checkIn);
@@ -55,8 +65,17 @@ export function RoomPicker({ onTypes }: { onTypes: (types: AvailabilityType[], n
     else next.add(id);
     void setFieldValue("rooms", [...next]);
   };
+  /** Group bookings: tick the first N free rooms, rooms that can hold the sharing (with extra beds) first */
+  const autoPick = () => {
+    const want = plan?.rooms ?? 0;
+    if (want < 1) return;
+    const fits = (t: AvailabilityType) => t.maxAdults + (t.maxExtraBeds ?? 1) >= (plan?.perRoom ?? 1);
+    const ordered = [...types.filter(fits), ...types.filter((t) => !fits(t))].flatMap((t) => t.rooms.map((r) => r._id));
+    if (ordered.length < want) toast.warning(`Only ${ordered.length} room(s) free for these dates, ${want} asked`);
+    void setFieldValue("rooms", ordered.slice(0, want));
+  };
   const error = (touched.rooms || submitCount > 0) && typeof errors.rooms === "string" ? errors.rooms : undefined;
-  const plan = values.mealPlan as MealPlan;
+  const mealPlan = values.mealPlan as MealPlan;
 
   return (
     <div className="md:col-span-2 lg:col-span-3 space-y-3">
@@ -71,6 +90,31 @@ export function RoomPicker({ onTypes }: { onTypes: (types: AvailabilityType[], n
       )}
       {!hotel && <p className="text-xs text-slate-500">Select a hotel to see free rooms.</p>}
 
+      {plan && setPlan && types.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <Wand2 className="w-3.5 h-3.5 text-brand" />
+          <span>Group: pick</span>
+          <input
+            type="number"
+            min={1}
+            aria-label="Number of rooms to pick"
+            value={plan.rooms || ""}
+            onChange={(e) => setPlan({ ...plan, rooms: Math.max(0, Number(e.target.value) || 0) })}
+            className="w-16 h-8 px-2 text-center bg-slate-50 border border-slate-300 rounded-md focus:border-brand focus:outline-none"
+          />
+          <span>free rooms</span>
+          <button
+            type="button"
+            onClick={autoPick}
+            disabled={!plan.rooms}
+            className="h-8 px-3 rounded-lg border border-brand text-brand font-bold hover:bg-brand-light disabled:opacity-40"
+          >
+            Pick Rooms
+          </button>
+          <span className="text-slate-400">{selected.size} selected · {types.reduce((s, t) => s + t.rooms.length, 0)} free</span>
+        </div>
+      )}
+
       {types.map((t) => (
         <div key={t._id} className="border border-line">
           <div className="px-3 py-1.5 bg-head border-b border-line flex flex-wrap items-center justify-between gap-2">
@@ -80,7 +124,7 @@ export function RoomPicker({ onTypes }: { onTypes: (types: AvailabilityType[], n
               <span className="text-slate-400 normal-case font-medium tracking-normal">· up to {t.maxAdults} adults</span>
             </span>
             <span className="text-[11px] text-slate-600">
-              <b className="tabular-nums">{formatINR(t.rates?.[plan])}</b> / night ({plan}) ·{" "}
+              <b className="tabular-nums">{formatINR(t.rates?.[mealPlan])}</b> / night ({mealPlan}) ·{" "}
               <span className={t.rooms.length ? "text-emerald-700 font-semibold" : "text-rose-600 font-semibold"}>
                 {t.rooms.length ? `${t.rooms.length} free` : "Sold out"}
               </span>

@@ -58,3 +58,19 @@ export function priceCharge(qty: number, rate: number, gstPercent: number) {
   const gstAmount = round2((amount * gstPercent) / 100);
   return { amount, gstAmount, total: round2(amount + gstAmount) };
 }
+
+/**
+ * Group / package bookings priced per person: (all guests − complimentary) × per-head rate per night.
+ * The nightly amount is spread over the rooms by how many people sleep in each, so invoices,
+ * GST slabs, reports, date changes and room moves keep working on room rates.
+ * Extra beds are included in the per-head rate (no separate charge).
+ */
+export function perHeadRates(paxPerRoom: number[], perHead: number, focPax: number): number[] {
+  const total = paxPerRoom.reduce((s, n) => s + n, 0);
+  if (!total || perHead <= 0) return paxPerRoom.map(() => 0);
+  const charged = Math.max(0, total - focPax);
+  const nightly = round2(perHead * charged);
+  const rates = paxPerRoom.map((n) => round2((nightly * n) / total));
+  rates[0] = round2(rates[0] + nightly - rates.reduce((s, r) => s + r, 0));
+  return rates;
+}

@@ -11,11 +11,12 @@ import { useApiSubmit } from "@/hooks/useApiSubmit";
 import { MEAL_PLANS, MEAL_PLAN_CODES, PAYMENT_MODES, toOptions, type MealPlan } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
 import type { AvailabilityType, Booking } from "@/lib/hotelTypes";
-import { priceRooms } from "@/lib/pricing";
+import { perHeadRates, priceRooms, round2 } from "@/lib/pricing";
 import type { Option } from "@/lib/types";
 import { bookingSchema, type BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi";
+import { AgentMessagePanel, type GroupPlan } from "./AgentMessagePanel";
 import { OccupancyEditor } from "./OccupancyEditor";
 import { RoomPicker } from "./RoomPicker";
 
@@ -46,6 +47,7 @@ export function BookingForm(p: BookingFormProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [checkInNow, setCheckInNow] = useState(p.source === "walkin" && (p.preset?.checkIn ?? p.today) === p.today);
   const isAgent = p.source === "agent";
+  const [plan, setPlan] = useState<GroupPlan>({ rooms: 0, perRoom: 2, guests: 0 });
 
   const initialValues: BookingInput = {
     source: p.source,
@@ -53,6 +55,9 @@ export function BookingForm(p: BookingFormProps) {
     agent: p.presetAgent ?? "",
     agentRef: "",
     billTo: isAgent ? "agent" : "guest",
+    rateType: "room",
+    perHeadRate: 0,
+    focPax: 0,
     checkIn: p.preset?.checkIn ?? p.today,
     checkOut: p.preset?.checkOut ?? (p.preset?.checkIn ? nextDay(p.preset.checkIn) : p.tomorrow),
     mealPlan: "CP",
@@ -66,7 +71,7 @@ export function BookingForm(p: BookingFormProps) {
     phone: "",
     address: "",
     aadhaar: "",
-    discountPercent: 0,
+    discountPercent: null,
     advance: 0,
     advanceMode: "upi",
     advanceRef: "",
@@ -107,17 +112,24 @@ export function BookingForm(p: BookingFormProps) {
     <Formik initialValues={initialValues} validationSchema={bookingSchema} onSubmit={onSubmit}>
       {({ isSubmitting, values, setFieldValue }) => {
         const agent = p.agentOptions.find((a) => a.value === values.agent);
-        const discount = isAgent ? agent?.discountPercent ?? 0 : p.canDiscount ? Number(values.discountPercent) || 0 : 0;
-        const plan = values.mealPlan as MealPlan;
-        const price = priceRooms(
-          values.rooms.map((id) => {
-            const line = values.lines.find((l) => l.room === id);
-            const t = typeOf.get(id);
-            return { rate: t?.rates?.[plan] ?? 0, extraBeds: Number(line?.extraBeds) || 0, extraBedRate: t?.extraBedRates?.[plan] ?? 0 };
-          }),
-          nights,
-          discount
-        );
+        const perHead = isAgent && values.rateType === "per_head";
+        // Default: agent contract % on room tariff, 0 on per-head / walk-in. Editable by the booking team.
+        const defaultDiscount = isAgent && !perHead ? agent?.discountPercent ?? 0 : 0;
+        const typed = values.discountPercent === null || (values.discountPercent as unknown) === "" ? null : Number(values.discountPercent);
+        const canAdjust = isAgent || p.canDiscount;
+        const discount = canAdjust ? (typed ?? defaultDiscount) : 0;
+        const mealPlan = values.mealPlan as MealPlan;
+        const roomLines = values.rooms.map((id) => values.lines.find((l) => l.room === id));
+        const pax = roomLines.map((l) => (Number(l?.adults) || 0) + (Number(l?.children) || 0));
+        const totalPax = pax.reduce((s, n) => s + n, 0);
+        const headRates = perHead ? perHeadRates(pax, Number(values.perHeadRate) || 0, Number(values.focPax) || 0) : [];
+        const priceLines = values.rooms.map((id, i) => {
+          const t = typeOf.get(id);
+          if (perHead) return { rate: headRates[i] ?? 0 };
+          return { rate: t?.rates?.[mealPlan] ?? 0, extraBeds: Number(roomLines[i]?.extraBeds) || 0, extraBedRate: t?.extraBedRates?.[mealPlan] ?? 0 };
+        });
+        const price = priceRooms(priceLines, nights, discount);
+        const gross = price.roomCharges + price.extraBedCharges;
         const showCheckIn = !isAgent || values.checkIn === p.today;
 
         return (
@@ -131,6 +143,12 @@ export function BookingForm(p: BookingFormProps) {
               submitLabel="Confirm Booking"
               submitting={isSubmitting}
             >
+              {isAgent && (
+                <FormSection title="Agent Message" description="Got the booking on WhatsApp? Paste it here to fill the form, then check it and pick rooms.">
+                  <AgentMessagePanel hotelOptions={p.hotelOptions} today={p.today} onPlan={setPlan} />
+                </FormSection>
+              )}
+
               <FormSection title="Stay">
                 <SelectField name="hotel" label="Hotel" required placeholder="Select hotel" options={p.hotelOptions} />
                 <TextField
@@ -152,7 +170,7 @@ export function BookingForm(p: BookingFormProps) {
               </FormSection>
 
               {isAgent && (
-                <FormSection title="Agent" description="The agent's contract discount is applied automatically.">
+                <FormSection title="Agent & Rate" description="Room tariff gets the agent's contract discount. Per head = the group rate agreed in the message (extra beds included).">
                   <SearchSelectField name="agent" label="Agent" required placeholder="Select agent" options={p.agentOptions} searchPlaceholder="Search agents..." />
                   <TextField name="agentRef" label="Agent Voucher / Ref No." maxLength={60} />
                   <SelectField
@@ -164,6 +182,28 @@ export function BookingForm(p: BookingFormProps) {
                       { value: "guest", label: "Guest pays at hotel" },
                     ]}
                   />
+                  <SelectField
+                    name="rateType"
+                    label="Rate Basis"
+                    required
+                    options={[
+                      { value: "room", label: "Room tariff (contract discount)" },
+                      { value: "per_head", label: "Per head (group / package)" },
+                    ]}
+                  />
+                  {perHead && (
+                    <>
+                      <TextField name="perHeadRate" label="Rate per Head / Night (₹)" type="number" min={0} step="1" required hint={`${values.mealPlan}, before GST`} />
+                      <TextField
+                        name="focPax"
+                        label="Complimentary (FOC) Guests"
+                        type="number"
+                        min={0}
+                        step="1"
+                        hint="Tour leader / driver: the +2 in 49 + 2. They stay free."
+                      />
+                    </>
+                  )}
                   {p.isSuperAdmin && (
                     <label className="flex items-center gap-2 text-xs text-slate-600 self-end pb-2">
                       <input
@@ -184,16 +224,18 @@ export function BookingForm(p: BookingFormProps) {
                     setTypes(t);
                     setNights(n);
                   }}
+                  plan={isAgent ? plan : undefined}
+                  setPlan={setPlan}
                 />
               </FormSection>
 
               <FormSection title="Occupancy & Guests" description="Adults, children and extra beds for each room. Capacity is checked per room type.">
-                <OccupancyEditor types={types} />
+                <OccupancyEditor types={types} plan={isAgent ? plan : undefined} setPlan={setPlan} />
               </FormSection>
 
               <FormSection title="Lead Guest">
                 <TextField name="guestName" label="Guest Name" required maxLength={100} />
-                <TextField name="phone" label="Phone" required placeholder="98XXXXXXXX" />
+                <TextField name="phone" label="Phone" required={!isAgent} placeholder="98XXXXXXXX" hint={isAgent ? "Blank = agent's phone" : undefined} />
                 <TextField name="aadhaar" label="Aadhaar Number" inputMode="numeric" maxLength={14} placeholder="XXXX XXXX XXXX" hint="Only last 4 digits are saved" />
                 <TextAreaField name="address" label="Address" className="md:col-span-2" rows={2} maxLength={300} />
                 {p.canUploadId && (
@@ -210,7 +252,17 @@ export function BookingForm(p: BookingFormProps) {
               </FormSection>
 
               <FormSection title="Payment & Summary">
-                {!isAgent && p.canDiscount && <TextField name="discountPercent" label="Discount %" type="number" min={0} max={100} step="0.5" />}
+                {canAdjust && (
+                  <DiscountFields
+                    gross={gross}
+                    discount={discount}
+                    net={round2(gross - price.discount)}
+                    defaultDiscount={defaultDiscount}
+                    defaultLabel={isAgent && !perHead && agent ? "contract" : "none"}
+                    edited={typed !== null}
+                    onPercent={(v) => void setFieldValue("discountPercent", v)}
+                  />
+                )}
                 {p.canPay && (
                   <>
                     <TextField name="advance" label="Advance Received (₹)" type="number" min={0} step="1" />
@@ -224,7 +276,13 @@ export function BookingForm(p: BookingFormProps) {
                   <table className="w-full text-xs">
                     <tbody className="divide-y divide-line">
                       <SummaryRow k={`Rooms × nights`} v={`${values.rooms.length} × ${nights || 0}`} />
-                      <SummaryRow k="Room charges" v={formatINR(price.roomCharges)} />
+                      {perHead && (
+                        <SummaryRow
+                          k="Per head × paying guests × nights"
+                          v={`${formatINR(Number(values.perHeadRate) || 0)} × ${Math.max(0, totalPax - (Number(values.focPax) || 0))} × ${nights || 0}${Number(values.focPax) ? ` (+${values.focPax} free)` : ""}`}
+                        />
+                      )}
+                      <SummaryRow k={perHead ? "Package charges" : "Room charges"} v={formatINR(price.roomCharges)} />
                       {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
                       {price.discount > 0 && <SummaryRow k={`Discount (${discount}%)`} v={`− ${formatINR(price.discount)}`} />}
                       <SummaryRow k="GST" v={formatINR(price.gstAmount)} />
@@ -249,6 +307,80 @@ export function BookingForm(p: BookingFormProps) {
         );
       }}
     </Formik>
+  );
+}
+
+const adjInput = "w-full h-9 px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:border-brand focus:outline-none tabular-nums";
+
+/**
+ * Discount % and "Adjusted price": type either one. A typed price is turned into the discount %
+ * (on the room / package charges before GST), so the bill, GST and reports stay consistent.
+ */
+function DiscountFields(p: {
+  gross: number;
+  discount: number;
+  net: number;
+  defaultDiscount: number;
+  defaultLabel: string;
+  edited: boolean;
+  onPercent: (v: number | null) => void;
+}) {
+  // While typing a price keep the raw text; otherwise show the price that the % gives
+  const [priceText, setPriceText] = useState<string | null>(null);
+  return (
+    <>
+      <FormField label="Discount %" hint={p.edited ? `Changed (default ${p.defaultDiscount}%)` : `Default: ${p.defaultLabel === "contract" ? `agent contract ${p.defaultDiscount}%` : "none"}`}>
+        <div className="flex gap-1.5">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step="0.01"
+            aria-label="Discount percent"
+            className={adjInput}
+            value={Number.isFinite(p.discount) ? round2(p.discount) : ""}
+            onChange={(e) => {
+              setPriceText(null);
+              const v = e.target.value === "" ? 0 : Math.min(100, Math.max(0, Number(e.target.value)));
+              p.onPercent(v);
+            }}
+          />
+          {p.edited && (
+            <button
+              type="button"
+              onClick={() => {
+                setPriceText(null);
+                p.onPercent(null);
+              }}
+              className="shrink-0 h-9 px-2.5 rounded-lg border border-slate-300 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+              title="Back to the default discount"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </FormField>
+      <FormField label="Adjusted Price (₹, before GST)" hint={p.gross ? `List price ${formatINR(p.gross)} → ${round2(p.discount)}% off` : "Pick rooms first"}>
+        <input
+          type="number"
+          min={0}
+          step="1"
+          aria-label="Adjusted price before GST"
+          disabled={!p.gross}
+          className={adjInput}
+          value={priceText ?? (p.gross ? round2(p.net) : "")}
+          onChange={(e) => {
+            setPriceText(e.target.value);
+            const v = Number(e.target.value);
+            if (e.target.value === "" || !Number.isFinite(v) || !p.gross) return;
+            // Price above list = no discount (a higher price needs a rate change, not a negative discount)
+            const pct = Math.min(100, Math.max(0, (1 - v / p.gross) * 100));
+            p.onPercent(Math.round(pct * 10000) / 10000);
+          }}
+          onBlur={() => setPriceText(null)}
+        />
+      </FormField>
+    </>
   );
 }
 

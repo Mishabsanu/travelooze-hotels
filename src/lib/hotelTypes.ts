@@ -150,6 +150,10 @@ export interface Booking {
   rooms: BookingRoom[];
   roomCharges: number;
   extraBedCharges: number;
+  /** Set on per-head (group package) bookings: rate per person per night */
+  perHeadRate?: number;
+  /** Complimentary guests on a per-head booking */
+  focPax?: number;
   discount: number;
   gstAmount: number;
   /** Accommodation total incl. GST */

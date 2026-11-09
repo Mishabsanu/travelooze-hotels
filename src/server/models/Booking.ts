@@ -82,6 +82,10 @@ export interface BookingDoc {
   extraBedCharges: number;
   /** Discount % applied (agent contract or manual); kept so re-pricing uses the same % */
   discountPercent?: number;
+  /** Group / package rate per person per night (set = per-head pricing; room rates are derived from it) */
+  perHeadRate?: number;
+  /** Complimentary guests, not charged */
+  focPax?: number;
   discount: number;
   gstAmount: number;
   /** Accommodation total incl. GST (what an agent is billed) */
@@ -184,6 +188,8 @@ const BookingSchema = new Schema<BookingDoc>(
     roomCharges: { type: Number, required: true },
     extraBedCharges: { type: Number, default: 0 },
     discountPercent: { type: Number, min: 0, max: 100 },
+    perHeadRate: { type: Number, min: 0 },
+    focPax: { type: Number, min: 0 },
     discount: { type: Number, default: 0 },
     gstAmount: { type: Number, required: true },
     total: { type: Number, required: true },

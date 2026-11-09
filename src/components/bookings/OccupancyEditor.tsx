@@ -1,13 +1,15 @@
 "use client";
 
 import { useFormikContext } from "formik";
-import { AlertTriangle, BedSingle, Users } from "lucide-react";
+import { AlertTriangle, BedSingle, Users, Wand2 } from "lucide-react";
 import { useEffect } from "react";
+import { toast } from "sonner";
 import type { MealPlan } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
 import type { AvailabilityType } from "@/lib/hotelTypes";
 import { capacityProblem } from "@/lib/rooming";
 import type { BookingInput } from "@/lib/validation/booking.schema";
+import type { GroupPlan } from "./AgentMessagePanel";
 
 type Line = BookingInput["lines"][number];
 
@@ -18,9 +20,18 @@ const num = "w-16 h-8 px-2 text-xs text-center bg-slate-50 border border-slate-3
  * Per selected room: adults, children, extra beds and an optional guest name.
  * Keeps `lines` in step with the picked rooms. Full guest names / IDs can be completed later on the booking.
  */
-export function OccupancyEditor({ types }: { types: AvailabilityType[] }) {
+const SHARING_OPTIONS = [
+  { value: 1, label: "Single (1)" },
+  { value: 2, label: "Double (2)" },
+  { value: 3, label: "Triple (3)" },
+  { value: 4, label: "Quad (4)" },
+  { value: 5, label: "5 per room" },
+  { value: 6, label: "6 per room" },
+];
+
+export function OccupancyEditor({ types, plan, setPlan }: { types: AvailabilityType[]; plan?: GroupPlan; setPlan?: (p: GroupPlan) => void }) {
   const { values, setFieldValue } = useFormikContext<BookingInput>();
-  const plan = values.mealPlan as MealPlan;
+  const mealPlan = values.mealPlan as MealPlan;
   const roomInfo = new Map(types.flatMap((t) => t.rooms.map((r) => [r._id, { type: t, number: r.number }] as const)));
 
   // One line per picked room (new rooms start full: up to 2 adults)
@@ -44,12 +55,63 @@ export function OccupancyEditor({ types }: { types: AvailabilityType[] }) {
     next[i] = { ...next[i], ...patch };
     void setFieldValue("lines", next);
   };
+  /** Group fill: spread N guests over the rooms at the chosen sharing, adding the extra beds needed */
+  const groupFill = () => {
+    if (!plan) return;
+    let left = plan.guests;
+    const next = values.lines.map((l, i) => {
+      const t = roomInfo.get(l.room)?.type;
+      const roomsAfter = values.lines.length - i - 1;
+      const n = Math.max(1, Math.min(plan.perRoom, left - roomsAfter));
+      left -= n;
+      const extraBeds = Math.max(0, n - (t?.maxAdults ?? 2));
+      return { ...l, adults: n, children: 0, extraBeds };
+    });
+    void setFieldValue("lines", next);
+    if (left > 0) toast.warning(`${left} guest(s) do not fit at ${plan.perRoom} per room: pick more rooms`);
+  };
   const totalAdults = values.lines.reduce((s, l) => s + (Number(l.adults) || 0), 0);
   const totalChildren = values.lines.reduce((s, l) => s + (Number(l.children) || 0), 0);
   const totalBeds = values.lines.reduce((s, l) => s + (Number(l.extraBeds) || 0), 0);
 
   return (
     <div className="md:col-span-2 lg:col-span-3 space-y-2">
+      {plan && setPlan && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          <Wand2 className="w-3.5 h-3.5 text-brand" />
+          <span>Group fill:</span>
+          <input
+            type="number"
+            min={1}
+            aria-label="Total guests"
+            value={plan.guests || ""}
+            onChange={(e) => setPlan({ ...plan, guests: Math.max(0, Number(e.target.value) || 0) })}
+            className="w-16 h-8 px-2 text-center bg-slate-50 border border-slate-300 rounded-md focus:border-brand focus:outline-none"
+          />
+          <span>guests,</span>
+          <select
+            aria-label="Guests per room"
+            value={plan.perRoom}
+            onChange={(e) => setPlan({ ...plan, perRoom: Number(e.target.value) })}
+            className="h-8 px-2 bg-slate-50 border border-slate-300 rounded-md focus:border-brand focus:outline-none"
+          >
+            {SHARING_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={groupFill}
+            disabled={!plan.guests}
+            className="h-8 px-3 rounded-lg border border-brand text-brand font-bold hover:bg-brand-light disabled:opacity-40"
+          >
+            Fill Rooms
+          </button>
+          <span className="text-slate-400">adds the extra beds each room needs</span>
+        </div>
+      )}
       <div className="border border-line overflow-x-auto bg-white">
         <table className="w-full text-xs border-collapse">
           <thead>
@@ -67,7 +129,7 @@ export function OccupancyEditor({ types }: { types: AvailabilityType[] }) {
               const info = roomInfo.get(l.room);
               const t = info?.type;
               const problem = t ? capacityProblem(t, { adults: Number(l.adults) || 0, children: Number(l.children) || 0, extraBeds: Number(l.extraBeds) || 0 }) : null;
-              const bedRate = t?.extraBedRates?.[plan] ?? 0;
+              const bedRate = t?.extraBedRates?.[mealPlan] ?? 0;
               return (
                 <tr key={l.room} className={problem ? "bg-rose-50/60" : ""}>
                   <td className={cell}>
@@ -96,7 +158,7 @@ export function OccupancyEditor({ types }: { types: AvailabilityType[] }) {
                       onChange={(e) => set(i, { extraBeds: Number(e.target.value) })}
                     />
                   </td>
-                  <td className={`${cell} text-right tabular-nums text-slate-600`}>{Number(l.extraBeds) > 0 ? formatINR(bedRate * Number(l.extraBeds)) : "—"}</td>
+                  <td className={`${cell} text-right tabular-nums text-slate-600`}>{Number(l.extraBeds) > 0 ? (values.rateType === "per_head" ? "Included" : formatINR(bedRate * Number(l.extraBeds))) : "—"}</td>
                   <td className={cell}>
                     {i === 0 && !l.guests?.[0]?.name ? (
                       <span className="text-[11px] text-slate-400">Lead guest below</span>

@@ -4,7 +4,7 @@ import { agentBookingsOnly, canBooking } from "@/lib/bookingAccess";
 import { BOOKING_STATUS, type MealPlan, type PaymentMode } from "@/lib/constants";
 import type { Booking } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
-import { priceRooms, round2 } from "@/lib/pricing";
+import { perHeadRates, priceRooms, round2 } from "@/lib/pricing";
 import { computeIdStatus } from "@/lib/rooming";
 import type { Paginated, SessionUser } from "@/lib/types";
 import type { BookingInput } from "@/lib/validation/booking.schema";
@@ -130,6 +130,21 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
   if (rooms.length !== roomIds.length) throw new AppError("Some selected rooms are not valid", 422, { rooms: "Pick again" });
   const types = new Map((await RoomType.find({ _id: { $in: rooms.map((r) => r.roomType) } }).lean()).map((t) => [String(t._id), t]));
   const mealPlan = input.mealPlan as MealPlan;
+  // Discount: agent contract rate, or a manual discount by someone allowed to edit rates
+  let agent = null;
+  let discountPercent = 0;
+  if (source === "agent") {
+    agent = isValidObjectId(input.agent) ? await Agent.findById(input.agent).lean() : null;
+    if (!agent || agent.status !== "active") throw new AppError("Choose an active agent", 422, { agent: "Agent is inactive" });
+    // Contract discount by default; the sales team may change it (or type an adjusted price) per booking
+    discountPercent = input.discountPercent ?? (input.rateType === "per_head" ? 0 : agent.discountPercent);
+  } else if (can(user, "room_type", "update")) {
+    discountPercent = input.discountPercent ?? 0;
+  }
+  // Agent groups may come without a guest phone: use the agent's
+  const phone = input.phone || agent?.phone || "";
+  if (!phone) throw new AppError("Phone is required", 422, { phone: "Phone is required" });
+
   // Keep the order the rooms were picked in
   const ordered = roomIds.map((id) => rooms.find((r) => String(r._id) === id)!);
   const lines = buildLines(ordered, types, mealPlan, {
@@ -137,19 +152,24 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
     adults: input.adults,
     children: input.children,
     guestName: input.guestName,
-    phone: input.phone,
+    phone,
   });
-  if (lines.some((l) => l.ratePerNight <= 0)) throw new AppError(`No ${mealPlan} rate set for one of the room types`, 422, { mealPlan: "Rate missing" });
 
-  // Discount: agent contract rate, or a manual discount by someone allowed to edit rates
-  let agent = null;
-  let discountPercent = 0;
-  if (source === "agent") {
-    agent = isValidObjectId(input.agent) ? await Agent.findById(input.agent).lean() : null;
-    if (!agent || agent.status !== "active") throw new AppError("Choose an active agent", 422, { agent: "Agent is inactive" });
-    discountPercent = agent.discountPercent;
-  } else if (can(user, "room_type", "update")) {
-    discountPercent = input.discountPercent ?? 0;
+  // Per-head (group package) rate: agreed per person per night, extra beds included, no contract discount
+  const perHead = source === "agent" && input.rateType === "per_head";
+  const focPax = perHead ? Math.max(0, Math.floor(input.focPax ?? 0)) : 0;
+  if (perHead) {
+    const pax = lines.map((l) => l.adults + l.children);
+    const totalPax = pax.reduce((s, n) => s + n, 0);
+    if (!(input.perHeadRate > 0)) throw new AppError("Enter the per-head rate", 422, { perHeadRate: "Enter the per-head rate" });
+    if (focPax >= totalPax) throw new AppError(`Complimentary guests (${focPax}) must be fewer than the ${totalPax} guests in the rooms`, 422, { focPax: "Too many" });
+    const rates = perHeadRates(pax, input.perHeadRate, focPax);
+    lines.forEach((l, i) => {
+      l.ratePerNight = rates[i];
+      l.extraBedRate = 0;
+    });
+  } else if (lines.some((l) => l.ratePerNight <= 0)) {
+    throw new AppError(`No ${mealPlan} rate set for one of the room types`, 422, { mealPlan: "Rate missing" });
   }
   const price = priceRooms(
     lines.map((l) => ({ rate: l.ratePerNight, extraBeds: l.extraBeds, extraBedRate: l.extraBedRate })),
@@ -188,7 +208,7 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
       agent: agent?._id,
       agentRef: source === "agent" ? input.agentRef : "",
       billTo,
-      guest: { name: input.guestName, phone: input.phone, address: input.address, aadhaarLast4: aadhaar ? aadhaar.slice(-4) : "", idFiles: [] },
+      guest: { name: input.guestName, phone, address: input.address, aadhaarLast4: aadhaar ? aadhaar.slice(-4) : "", idFiles: [] },
       adults: lines.reduce((n, l) => n + l.adults, 0),
       children: lines.reduce((n, l) => n + l.children, 0),
       checkIn,
@@ -201,6 +221,7 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
       rooms: lines,
       ...price,
       discountPercent,
+      ...(perHead ? { perHeadRate: round2(input.perHeadRate), focPax } : {}),
       payments: advance > 0 ? [{ amount: advance, mode: input.advanceMode as PaymentMode, reference: input.advanceRef, paidBy: billTo, by: user._id }] : [],
       notes: input.notes,
       createdBy: user._id,

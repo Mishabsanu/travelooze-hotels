@@ -4,7 +4,7 @@ import { canBooking } from "@/lib/bookingAccess";
 import type { MealPlan } from "@/lib/constants";
 import type { Booking } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
-import { priceRooms } from "@/lib/pricing";
+import { perHeadRates, priceRooms } from "@/lib/pricing";
 import { capacityProblem } from "@/lib/rooming";
 import type { SessionUser } from "@/lib/types";
 import type { RoomingInput } from "@/lib/validation/booking.schema";
@@ -86,6 +86,14 @@ export function discountPercentOf(b: { discountPercent?: number; discount: numbe
 
 /** Re-prices the accommodation after occupancy / dates / room changes (stored rates are kept). */
 export function repriceDoc(doc: InstanceType<typeof BookingModel>) {
+  if (doc.perHeadRate) {
+    // Per-head booking: the room rates follow the number of people in each room
+    const rates = perHeadRates(doc.rooms.map((l) => (l.adults ?? 1) + (l.children ?? 0)), doc.perHeadRate, doc.focPax ?? 0);
+    doc.rooms.forEach((l, i) => {
+      l.ratePerNight = rates[i];
+      l.extraBedRate = 0;
+    });
+  }
   const price = priceRooms(
     doc.rooms.map((l) => ({ rate: l.ratePerNight, extraBeds: l.extraBeds ?? 0, extraBedRate: l.extraBedRate ?? 0 })),
     doc.nights,

@@ -1,6 +1,6 @@
 import * as Yup from "yup";
 import { CHARGE_CATEGORIES, MEAL_PLAN_CODES, PAYMENT_MODES } from "../constants";
-import { objectId, optionalText, requiredPhone, requiredText } from "./common";
+import { objectId, optionalText, PHONE_PATTERN, requiredText } from "./common";
 
 /** "HH:mm" or empty (empty = hotel standard time) */
 export const optionalTime = (label: string) =>
@@ -70,6 +70,15 @@ export const bookingSchema = Yup.object({
     .when("source", { is: "agent", then: (s) => s.required("Choose an agent").matches(/^[a-f0-9]{24}$/i, "Choose an agent") }),
   agentRef: optionalText("Agent reference", 60),
   billTo: Yup.string().oneOf(["guest", "agent"]).default("guest"),
+  /** room = room tariff of the meal plan; per_head = group / package rate per person per night (agent bookings) */
+  rateType: Yup.string().oneOf(["room", "per_head"]).default("room"),
+  perHeadRate: Yup.number()
+    .typeError("Enter a number")
+    .min(0, "Cannot be negative")
+    .default(0)
+    .when("rateType", { is: "per_head", then: (s) => s.moreThan(0, "Enter the per-head rate") }),
+  /** Complimentary guests (tour leader, driver: the "+2" in "49 + 2") who stay but are not charged */
+  focPax: Yup.number().typeError("Enter a number").integer().min(0, "Cannot be negative").default(0),
   checkIn: day("Check-in"),
   checkOut: day("Check-out").test("after", "Check-out must be after check-in", function (v) {
     return !v || !this.parent.checkIn || v > this.parent.checkIn;
@@ -83,12 +92,18 @@ export const bookingSchema = Yup.object({
   adults: Yup.number().typeError("Enter a number").integer().min(1, "At least 1 adult").default(1),
   children: Yup.number().typeError("Enter a number").integer().min(0).default(0),
   guestName: requiredText("Guest name", 100),
-  phone: requiredPhone("Phone"),
+  // Agent groups often come without a guest phone: the agent's phone is used then
+  phone: Yup.string()
+    .trim()
+    .default("")
+    .test("phone", "Phone must be a valid phone number", (v) => !v || PHONE_PATTERN.test(v))
+    .when("source", { is: "walkin", then: (s) => s.required("Phone is required") }),
   address: optionalText("Address", 300),
   aadhaar: Yup.string()
     .default("")
     .test("aadhaar", "Aadhaar must be 12 digits", (v) => !v || v.replace(/\D/g, "").length === 12),
-  discountPercent: Yup.number().typeError("Enter a number").min(0).max(100).default(0),
+  /** Blank (null) = the default: agent contract % (room tariff), 0 otherwise. Editable, also via "adjusted price". */
+  discountPercent: Yup.number().typeError("Enter a number").min(0, "Cannot be negative").max(100, "At most 100%").nullable().default(null),
   advance: Yup.number().typeError("Enter a number").min(0, "Cannot be negative").default(0),
   advanceMode: Yup.string().oneOf(Object.keys(PAYMENT_MODES)).default("upi"),
   advanceRef: optionalText("Payment reference", 60),

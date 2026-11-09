@@ -59,7 +59,7 @@ export async function BookingListPage({ searchParams, agentOnly = false }: { sea
           )
         }
       />
-      <BookingListView data={data} hotelOptions={hotelOptions} agentOnly={onlyAgent} />
+      <BookingListView data={data} hotelOptions={hotelOptions} agentOnly={onlyAgent} today={toDayString(todayIST())} />
     </>
   );
 }
@@ -71,7 +71,7 @@ export async function BookingCreatePage({ searchParams, source }: { searchParams
   const today = todayIST();
   const [hotelOptions, agentOptions] = await Promise.all([listHotelOptions(user), source === "agent" ? listAgentOptions() : []]);
   // Prefill from the booking grid / room board: ?hotel=&room=&checkIn=&checkOut=
-  const isDay = (v?: string) => Boolean(v && /^d{4}-d{2}-d{2}$/.test(v) && v >= toDayString(today));
+  const isDay = (v?: string) => Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= toDayString(today));
   const ci = first(sp.checkIn);
   const co = first(sp.checkOut);
   const preset = {
@@ -99,7 +99,7 @@ export async function BookingCreatePage({ searchParams, source }: { searchParams
   );
 }
 
-export async function BookingDetailPage({ params }: { params: IdParams }) {
+export async function BookingDetailPage({ params, searchParams }: { params: IdParams; searchParams?: SearchParams }) {
   const user = await requireUser();
   if (!canListBookings(user)) return <AccessDenied />;
   const b = await orNotFound(getBooking((await params).id, user));
@@ -119,7 +119,7 @@ export async function BookingDetailPage({ params }: { params: IdParams }) {
           {b.hotel?.gstin && <p>GSTIN {b.hotel.gstin}</p>}
         </div>
       </div>
-      <BookingActions booking={b} today={toDayString(todayIST())} />
+      <BookingActions booking={b} today={toDayString(todayIST())} autoOpen={first((await searchParams)?.do)} />
       <DetailCard
         title={b.bookingNo}
         subtitle={`${b.hotel?.name ?? ""} · booked ${formatDateTime(b.createdAt)} by ${b.createdBy?.name ?? "—"}`}
@@ -164,6 +164,12 @@ export async function BookingDetailPage({ params }: { params: IdParams }) {
           <DetailItem label="Hotel Times" value={`In ${timeLabel(b.hotel?.checkInTime || "12:00")} · Out ${timeLabel(b.hotel?.checkOutTime || "11:00")}`} />
           <DetailItem label="Nights / Guests" value={`${b.nights} night(s) · ${b.adults} adult(s)${b.children ? `, ${b.children} child` : ""}`} />
           <DetailItem label="Meal Plan" value={MEAL_PLANS[b.mealPlan].label} />
+          {b.perHeadRate ? (
+            <DetailItem
+              label="Group Rate"
+              value={`${formatINR(b.perHeadRate)} per head / night · ${b.adults + b.children - (b.focPax ?? 0)} paying${b.focPax ? ` + ${b.focPax} complimentary` : ""}`}
+            />
+          ) : null}
           {b.source === "agent" && <DetailItem label="Agent / Ref" value={`${b.agent?.name ?? "—"}${b.agentRef ? ` · ${b.agentRef}` : ""}`} />}
           {b.source === "agent" && <DetailItem label="Bill To" value={b.billTo === "agent" ? "Agent credit account" : "Guest"} />}
         </DetailSection>

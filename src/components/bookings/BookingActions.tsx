@@ -4,7 +4,7 @@ import { ArrowRightLeft, Ban, CalendarRange, FileText, IdCard, LogIn, LogOut, Pe
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSession } from "@/components/providers/SessionProvider";
 import { Button } from "@/components/ui/Button";
@@ -21,10 +21,27 @@ const BookingDialogs = dynamic(() => import("./BookingDialogs"), { ssr: false })
 const StayDialogs = dynamic(() => import("./StayDialogs").then((m) => m.StayDialogs), { ssr: false });
 
 /** Action bar of a booking: only the actions the user's role allows (the API enforces the same rules). */
-export function BookingActions({ booking: b, today }: { booking: Booking; today: string }) {
+export function BookingActions({ booking: b, today, autoOpen }: { booking: Booking; today: string; autoOpen?: string }) {
   const user = useSession();
   const router = useRouter();
-  const [dialog, setDialog] = useState<Dialog>(null);
+  // Opened from the bookings list with ?do=checkin / checkout / pay: start with that pop-up
+  const [dialog, setDialog] = useState<Dialog>(() => {
+    if (autoOpen === "checkin" && b.status === "confirmed" && b.checkIn.slice(0, 10) <= today && b.idStatus.ready) return "checkin";
+    if (autoOpen === "checkout" && b.status === "checked_in") return "checkout";
+    if (autoOpen === "pay" && b.status !== "cancelled" && b.balance > 0) return "pay";
+    return null;
+  });
+  useEffect(() => {
+    if (!autoOpen) return;
+    // Check-in blocked by missing IDs: say why and jump to the rooming list
+    if (autoOpen === "checkin" && b.status === "confirmed" && !b.idStatus.ready) {
+      toast.warning(`Check-in needs every adult's name and ID first (${b.idStatus.adultsWithId} of ${b.idStatus.adultsExpected} done). Add them in the Rooming List.`);
+      document.getElementById("rooming-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    // Drop ?do= so a refresh does not open it again
+    router.replace(window.location.pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [stay, setStay] = useState<StayDialog | null>(null);
   const [busy, setBusy] = useState(false);
 

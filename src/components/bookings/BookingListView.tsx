@@ -1,7 +1,9 @@
 "use client";
 
+import { Eye, LogIn, LogOut, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
+import { useSession } from "@/components/providers/SessionProvider";
 import { DataTable } from "@/components/table/DataTable";
 import type { Column, FilterConfig } from "@/components/table/types";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
@@ -9,7 +11,8 @@ import { BOOKING_STATUS, MEAL_PLAN_CODES, toOptions, type BookingStatus } from "
 import { formatDateTime, formatDay, formatINR } from "@/lib/format";
 import { isEarlyCheckIn, isLateCheckOut, timeLabel } from "@/lib/stayTimes";
 import type { Booking } from "@/lib/hotelTypes";
-import type { Option, Paginated } from "@/lib/types";
+import { can } from "@/lib/permissions";
+import type { Option, Paginated, SessionUser } from "@/lib/types";
 
 import { BOOKING_BASE } from "./bookingConfig";
 
@@ -44,15 +47,59 @@ const STAY_FILTER: FilterConfig = {
   ],
 };
 
+const pill = "inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] font-bold transition-colors";
+
+/** The next step for a booking, right in the list: Check In (on/after arrival day), Check Out, Pay. Opens the booking with that pop-up. */
+function BookingRowActions({ b, user, today }: { b: Booking; user: SessionUser; today: string }) {
+  const href = `${BOOKING_BASE}/${b._id}`;
+  const desk = can(user, "check_in_out", "update");
+  const arrived = b.checkIn.slice(0, 10) <= today;
+  return (
+    <div className="flex items-center justify-end gap-1.5">
+      {b.status === "confirmed" && desk && arrived && (
+        <Link href={`${href}?do=checkin`} className={`${pill} bg-emerald-600 text-white hover:bg-emerald-700`}>
+          <LogIn className="w-3.5 h-3.5" /> Check In
+        </Link>
+      )}
+      {b.status === "confirmed" && desk && !arrived && (
+        <span className={`${pill} bg-slate-100 text-slate-400 cursor-default`} title="Check-in opens on the arrival date">
+          <LogIn className="w-3.5 h-3.5" /> {formatDay(b.checkIn).replace(/\s\d{4}$/, "")}
+        </span>
+      )}
+      {b.status === "checked_in" && desk && (
+        <Link href={`${href}?do=checkout`} className={`${pill} bg-slate-800 text-white hover:bg-slate-900`}>
+          <LogOut className="w-3.5 h-3.5" /> Check Out
+        </Link>
+      )}
+      {b.status !== "cancelled" && b.balance > 0 && can(user, "payment", "create") && (
+        <Link
+          href={`${href}?do=pay`}
+          title="Record payment"
+          aria-label="Pay"
+          className="p-1 rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-50"
+        >
+          <Wallet className="w-3.5 h-3.5" />
+        </Link>
+      )}
+      <Link href={href} title="Open booking" className="p-1 rounded text-slate-400 hover:text-brand hover:bg-brand-light">
+        <Eye className="w-3.5 h-3.5" />
+      </Link>
+    </div>
+  );
+}
+
 interface Props {
   data: Paginated<Booking>;
+  /** Today in IST (YYYY-MM-DD), from the server */
+  today: string;
   hotelOptions: Option[];
   /** Hide the walk-in / agent filter (agent bookings page, agent detail) */
   agentOnly?: boolean;
   itemName?: string;
 }
 
-export function BookingListView({ data, hotelOptions, agentOnly, itemName = "bookings" }: Props) {
+export function BookingListView({ data, hotelOptions, agentOnly, itemName = "bookings", today }: Props) {
+  const user = useSession();
   const columns = useMemo<Column<Booking>[]>(
     () => [
       {
@@ -167,6 +214,7 @@ export function BookingListView({ data, hotelOptions, agentOnly, itemName = "boo
       itemName={itemName}
       searchPlaceholder="Search by booking no., guest, phone, room or agent ref..."
       filters={filters}
+      rowActions={(row) => <BookingRowActions b={row} user={user} today={today} />}
     />
   );
 }

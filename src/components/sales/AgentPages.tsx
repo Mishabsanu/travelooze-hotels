@@ -1,4 +1,6 @@
 import { Handshake, Plus } from "lucide-react";
+import { toDayString } from "@/lib/format";
+import { todayIST } from "@/server/services/stay";
 import Link from "next/link";
 import { BookingListView } from "@/components/bookings/BookingListView";
 import { AccessDenied } from "@/components/ui/AccessDenied";
@@ -118,7 +120,7 @@ export async function AgentDetailPage({ params, searchParams }: { params: IdPara
               )
             }
           />
-          <BookingListView data={bookings} hotelOptions={hotelOptions} agentOnly />
+          <BookingListView data={bookings} hotelOptions={hotelOptions} agentOnly today={toDayString(todayIST())} />
         </>
       )}
     </div>
