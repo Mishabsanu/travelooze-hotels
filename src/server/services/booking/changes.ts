@@ -7,7 +7,7 @@ import { can } from "@/lib/permissions";
 import { priceCharge, round2 } from "@/lib/pricing";
 import { capacityProblem } from "@/lib/rooming";
 import type { SessionUser } from "@/lib/types";
-import type { ChargeInput } from "@/lib/validation/booking.schema";
+import type { ChargeInput, RateInput } from "@/lib/validation/booking.schema";
 import { AppError } from "../../http/errors";
 import { Booking as BookingModel } from "../../models/Booking";
 import { Room } from "../../models/Room";
@@ -188,6 +188,61 @@ export async function removeCharge(id: string, chargeId: string, user: SessionUs
   doc.charges = doc.charges.filter((c) => String(c._id) !== chargeId) as never;
   if (doc.charges.length === before) throw new AppError("Charge not found", 404);
   recalcExtras(doc);
+  await doc.save();
+  return getBooking(id, user);
+}
+
+/* ───────────── Edit rate / discount ───────────── */
+
+/**
+ * Changes the price of a booking: meal plan, room tariff ⇄ per-head, per-head rate, complimentary guests, discount.
+ * Room tariff rates are re-read from the room types only when the meal plan or the rate basis changes.
+ * Not allowed once a GST invoice has been issued (the invoice must match the booking).
+ */
+export async function changeRate(id: string, input: RateInput, user: SessionUser): Promise<Booking> {
+  const { view, doc } = await loadOpen(id, user);
+  if (!canBooking(user, view.source, "update")) throw forbid("change the rate of this booking");
+  if (doc.invoiceNo) throw new AppError(`Invoice ${doc.invoiceNo} is already issued for this booking: the rate cannot change`, 409);
+  const isAgent = doc.source === "agent";
+  const perHead = isAgent && input.rateType === "per_head";
+  const mealPlan = input.mealPlan as MealPlan;
+  const before = `${doc.mealPlan}, ${doc.perHeadRate ? `₹${doc.perHeadRate}/head` : "room tariff"}, ${round2(doc.discountPercent ?? 0)}% off, total ₹${doc.total}`;
+
+  // Walk-ins: only people who may set rates can give a discount
+  if (!isAgent && input.discountPercent !== null && input.discountPercent !== (doc.discountPercent ?? 0) && !can(user, "room_type", "update")) {
+    throw forbid("give a discount");
+  }
+
+  if (perHead) {
+    const totalPax = doc.rooms.reduce((n, l) => n + (l.adults ?? 1) + (l.children ?? 0), 0);
+    const foc = Math.floor(input.focPax ?? 0);
+    if (foc >= totalPax) throw new AppError(`Complimentary guests (${foc}) must be fewer than the ${totalPax} guests in the rooms`, 422, { focPax: "Too many" });
+    doc.perHeadRate = round2(input.perHeadRate);
+    doc.focPax = foc;
+  } else if (doc.perHeadRate || mealPlan !== doc.mealPlan) {
+    // Back to room tariff, or another meal plan: today's tariff of each room type
+    const types = new Map((await RoomType.find({ _id: { $in: doc.rooms.map((l) => l.roomType) } }).lean()).map((t) => [String(t._id), t]));
+    for (const l of doc.rooms) {
+      const t = types.get(String(l.roomType));
+      const rate = t?.rates?.[mealPlan] ?? 0;
+      if (rate <= 0) throw new AppError(`No ${mealPlan} rate set for ${l.roomTypeName}`, 422, { mealPlan: "Rate missing" });
+      l.ratePerNight = rate;
+      l.extraBedRate = l.extraBeds ? (t?.extraBedRates?.[mealPlan] ?? 0) : 0;
+    }
+    doc.perHeadRate = undefined;
+    doc.focPax = undefined;
+  }
+  doc.mealPlan = mealPlan;
+  if (input.discountPercent !== null) doc.discountPercent = input.discountPercent;
+  doc.markModified("rooms");
+  repriceDoc(doc);
+  const paid = round2(doc.payments.reduce((n, p) => n + p.amount, 0));
+  if (paid > round2(doc.total + (doc.extrasTotal ?? 0))) {
+    throw new AppError(`₹${paid} is already paid, more than the new total ₹${round2(doc.total + (doc.extrasTotal ?? 0))}. Lower the discount or refund first.`, 409);
+  }
+  doc.notes = [doc.notes, `Rate changed by ${user.name}: ${before} ⇒ ${mealPlan}, ${doc.perHeadRate ? `₹${doc.perHeadRate}/head` : "room tariff"}, ${round2(doc.discountPercent ?? 0)}% off, total ₹${doc.total}`]
+    .filter(Boolean)
+    .join("\n");
   await doc.save();
   return getBooking(id, user);
 }

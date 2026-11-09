@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormikContext } from "formik";
-import { ClipboardPaste, Sparkles } from "lucide-react";
+import { ClipboardPaste, Copy, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { matchHotel, parseAgentMessage } from "@/lib/agentMessage";
@@ -9,6 +9,20 @@ import { MEAL_PLANS } from "@/lib/constants";
 import { formatDay } from "@/lib/format";
 import type { Option } from "@/lib/types";
 import type { BookingInput } from "@/lib/validation/booking.schema";
+
+/** The format agents are asked to send (every line is read by "Fill Form From Message"). */
+const AGENT_MESSAGE_FORMAT = `SL NO:
+GUEST NAME:
+CONTACT NO:
+NO OF MEMBERS:  +
+LOCATION:
+HOTEL NAME:
+CHECK IN:
+CHECK OUT:
+NO OF NIGHTS:
+ROOMING:  ROOMS ON  SHARING
+MEAL PLAN:
+PER HEAD: `;
 
 export interface GroupPlan {
   /** Rooms the agent asked for */
@@ -108,6 +122,22 @@ export function AgentMessagePanel({ hotelOptions, today, onPlan }: { hotelOption
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50"
         >
           <ClipboardPaste className="w-3.5 h-3.5" /> Paste
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(AGENT_MESSAGE_FORMAT);
+              toast.success("Format copied: send it to the agent on WhatsApp");
+            } catch {
+              setText(AGENT_MESSAGE_FORMAT);
+              toast.info("Format put in the box: select it and copy");
+            }
+          }}
+          title="Copy the message format to send to agents"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50"
+        >
+          <Copy className="w-3.5 h-3.5" /> Copy Format for Agents
         </button>
       </div>
       {result && (

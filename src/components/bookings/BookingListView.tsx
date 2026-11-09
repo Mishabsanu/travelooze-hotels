@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, LogIn, LogOut, Wallet } from "lucide-react";
+import { Eye, LogIn, LogOut, Pencil, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { useSession } from "@/components/providers/SessionProvider";
@@ -11,6 +11,7 @@ import { BOOKING_STATUS, MEAL_PLAN_CODES, toOptions, type BookingStatus } from "
 import { formatDateTime, formatDay, formatINR } from "@/lib/format";
 import { isEarlyCheckIn, isLateCheckOut, timeLabel } from "@/lib/stayTimes";
 import type { Booking } from "@/lib/hotelTypes";
+import { canBooking } from "@/lib/bookingAccess";
 import { can } from "@/lib/permissions";
 import type { Option, Paginated, SessionUser } from "@/lib/types";
 
@@ -79,6 +80,11 @@ function BookingRowActions({ b, user, today }: { b: Booking; user: SessionUser; 
           className="p-1 rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-50"
         >
           <Wallet className="w-3.5 h-3.5" />
+        </Link>
+      )}
+      {(b.status === "confirmed" || b.status === "checked_in") && canBooking(user, b.source, "update") && (
+        <Link href={`${href}?do=edit`} title="Edit booking" aria-label="Edit" className="p-1 rounded text-slate-400 hover:text-brand hover:bg-brand-light">
+          <Pencil className="w-3.5 h-3.5" />
         </Link>
       )}
       <Link href={href} title="Open booking" className="p-1 rounded text-slate-400 hover:text-brand hover:bg-brand-light">

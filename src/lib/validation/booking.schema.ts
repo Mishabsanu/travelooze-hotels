@@ -132,3 +132,17 @@ export const checkOutSchema = Yup.object({
 });
 
 export const checkInSchema = Yup.object({ at: momentField });
+
+/** Edit the price of a booking: meal plan, rate basis, per-head rate, discount */
+export const rateSchema = Yup.object({
+  mealPlan: Yup.string().oneOf(MEAL_PLAN_CODES, "Choose a meal plan").required(),
+  rateType: Yup.string().oneOf(["room", "per_head"]).default("room"),
+  perHeadRate: Yup.number()
+    .typeError("Enter a number")
+    .min(0, "Cannot be negative")
+    .default(0)
+    .when("rateType", { is: "per_head", then: (s) => s.moreThan(0, "Enter the per-head rate") }),
+  focPax: Yup.number().typeError("Enter a number").integer().min(0, "Cannot be negative").default(0),
+  discountPercent: Yup.number().typeError("Enter a number").min(0, "Cannot be negative").max(100, "At most 100%").nullable().default(null),
+});
+export type RateInput = Yup.InferType<typeof rateSchema>;

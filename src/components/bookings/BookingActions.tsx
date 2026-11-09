@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, Ban, CalendarRange, FileText, IdCard, LogIn, LogOut, Pencil, Printer, Receipt, Wallet } from "lucide-react";
+import { ArrowRightLeft, BadgePercent, Ban, CalendarRange, FileText, IdCard, LogIn, LogOut, Pencil, Printer, Receipt, Wallet } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -29,6 +29,7 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
     if (autoOpen === "checkin" && b.status === "confirmed" && b.checkIn.slice(0, 10) <= today && b.idStatus.ready) return "checkin";
     if (autoOpen === "checkout" && b.status === "checked_in") return "checkout";
     if (autoOpen === "pay" && b.status !== "cancelled" && b.balance > 0) return "pay";
+    if (autoOpen === "edit" && (b.status === "confirmed" || b.status === "checked_in") && canBooking(user, b.source, "update")) return "edit";
     return null;
   });
   useEffect(() => {
@@ -43,6 +44,7 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [stay, setStay] = useState<StayDialog | null>(null);
+  const canEditRate = (b.status === "confirmed" || b.status === "checked_in") && canBooking(user, b.source, "update") && !b.invoiceNo;
   const [busy, setBusy] = useState(false);
 
   const run = async (fn: () => Promise<unknown>, message: string) => {
@@ -119,6 +121,11 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
           Edit Guest
         </Button>
       )}
+      {canEditRate && (
+        <Button variant="outline" icon={<BadgePercent className="w-4 h-4" />} onClick={() => setStay("rate")}>
+          Edit Rate / Discount
+        </Button>
+      )}
       <Button variant="ghost" icon={<Printer className="w-4 h-4" />} onClick={() => window.print()}>
         Print
       </Button>
@@ -152,7 +159,7 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
         </Link>
       )}
       {dialog && <BookingDialogs b={b} user={user} dialog={dialog} setDialog={setDialog} busy={busy} arrived={arrived} run={run} />}
-      {stay && <StayDialogs b={b} dialog={stay} close={() => setStay(null)} busy={busy} today={today} run={run} />}
+      {stay && <StayDialogs b={b} dialog={stay} close={() => setStay(null)} busy={busy} today={today} run={run} canDiscount={can(user, "room_type", "update")} />}
     </div>
   );
 }
