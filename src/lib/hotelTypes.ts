@@ -1,0 +1,121 @@
+import type { BookingStatus, HotelCategory, MealPlan, PaymentMode, RoomStatus } from "./constants";
+import type { CreatorName, RecordStatus } from "./types";
+
+export interface Hotel {
+  _id: string;
+  code: string;
+  name: string;
+  category: HotelCategory;
+  address: string;
+  phone: string;
+  email: string;
+  gstin: string;
+  status: RecordStatus;
+  roomCount?: number;
+  createdBy?: CreatorName | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RoomType {
+  _id: string;
+  hotel: { _id: string; name: string; code: string } | null;
+  name: string;
+  maxAdults: number;
+  rates: Record<MealPlan, number>;
+  status: RecordStatus;
+  roomCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Room {
+  _id: string;
+  hotel: { _id: string; name: string; code: string } | null;
+  roomType: { _id: string; name: string } | null;
+  number: string;
+  floor: string;
+  housekeeping: RoomStatus;
+  status: RecordStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Agent {
+  _id: string;
+  code: string;
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  address: string;
+  gstin: string;
+  discountPercent: number;
+  creditLimit: number;
+  status: RecordStatus;
+  /** Billed to agent minus payments (non-cancelled bookings) */
+  outstanding?: number;
+  bookingCount?: number;
+  createdBy?: CreatorName | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface BookingRoom {
+  room: string;
+  roomNumber: string;
+  roomType: string;
+  roomTypeName: string;
+  ratePerNight: number;
+}
+
+export interface BookingPayment {
+  _id: string;
+  amount: number;
+  mode: PaymentMode;
+  reference: string;
+  paidBy: "guest" | "agent";
+  at: string;
+  by?: CreatorName | null;
+}
+
+export interface Booking {
+  _id: string;
+  bookingNo: string;
+  hotel: { _id: string; name: string; code: string; address?: string; phone?: string; gstin?: string } | null;
+  source: "walkin" | "agent";
+  agent: { _id: string; name: string; gstin?: string } | null;
+  agentRef: string;
+  billTo: "guest" | "agent";
+  guest: { name: string; phone: string; address: string; aadhaarLast4: string; idFiles: string[] };
+  adults: number;
+  children: number;
+  checkIn: string;
+  checkOut: string;
+  nights: number;
+  mealPlan: MealPlan;
+  rooms: BookingRoom[];
+  roomCharges: number;
+  discount: number;
+  gstAmount: number;
+  total: number;
+  paid: number;
+  balance: number;
+  payments: BookingPayment[];
+  status: BookingStatus;
+  notes: string;
+  checkedInAt?: string;
+  checkedOutAt?: string;
+  createdBy?: CreatorName | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Free rooms per room type for a stay, returned by /api/bookings/availability */
+export interface AvailabilityType {
+  _id: string;
+  name: string;
+  maxAdults: number;
+  rates: Record<MealPlan, number>;
+  rooms: { _id: string; number: string; floor: string }[];
+}
