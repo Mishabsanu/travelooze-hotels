@@ -13,7 +13,7 @@ import { formatDay, formatINR } from "@/lib/format";
 import type { Option } from "@/lib/types";
 import type { BoardRoom, RoomState } from "@/server/services/booking/grid";
 import { apiRequest, ApiError } from "@/services/apiClient";
-import { BOOKING_BASE } from "./BookingListView";
+import { BOOKING_BASE } from "./bookingConfig";
 
 const STATE: Record<RoomState, { label: string; card: string; chip: string }> = {
   vacant: { label: "Vacant", card: "border-emerald-200", chip: "bg-emerald-50 text-emerald-700 border-emerald-200" },

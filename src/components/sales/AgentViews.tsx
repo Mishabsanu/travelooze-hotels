@@ -17,13 +17,7 @@ import type { Paginated } from "@/lib/types";
 import { agentSchema, emptyAgent, type AgentInput } from "@/lib/validation/agent.schema";
 import { resourceApi } from "@/services/apiClient";
 
-export const AGENT_UI = {
-  label: "Agent",
-  plural: "B2B Agents Master",
-  basePath: "/dashboard/sales/agents",
-  apiBase: "/api/agents",
-  description: "Travel agents and corporate partners: contract discount, credit limit and outstanding",
-} as const;
+import { AGENT_UI } from "./agentConfig";
 
 const api = resourceApi<Agent>(AGENT_UI.apiBase);
 

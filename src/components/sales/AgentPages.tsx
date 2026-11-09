@@ -14,7 +14,8 @@ import { getAgent, listAgents } from "@/server/services/agent.service";
 import { listBookings } from "@/server/services/booking/booking.service";
 import { listHotelOptions } from "@/server/services/hotel.service";
 import { orNotFound } from "@/server/utils/pageData";
-import { AGENT_UI, AgentForm, AgentListView } from "./AgentViews";
+import { AGENT_UI } from "./agentConfig";
+import { AgentForm, AgentListView } from "./AgentViews";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type IdParams = Promise<{ id: string }>;

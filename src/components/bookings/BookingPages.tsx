@@ -18,7 +18,8 @@ import { addDays, todayIST } from "@/server/services/stay";
 import { orNotFound } from "@/server/utils/pageData";
 import { BookingActions } from "./BookingActions";
 import { BookingForm } from "./BookingForm";
-import { BOOKING_BASE, BookingListView, BookingStatusBadge, SourceBadge } from "./BookingListView";
+import { BOOKING_BASE } from "./bookingConfig";
+import { BookingListView, BookingStatusBadge, SourceBadge } from "./BookingListView";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type IdParams = Promise<{ id: string }>;

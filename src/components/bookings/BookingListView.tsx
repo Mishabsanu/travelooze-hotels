@@ -10,7 +10,7 @@ import { formatDay, formatINR } from "@/lib/format";
 import type { Booking } from "@/lib/hotelTypes";
 import type { Option, Paginated } from "@/lib/types";
 
-export const BOOKING_BASE = "/dashboard/front-office/bookings";
+import { BOOKING_BASE } from "./bookingConfig";
 
 const STATUS_VARIANT: Record<BookingStatus, BadgeVariant> = {
   confirmed: "info",

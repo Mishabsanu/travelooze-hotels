@@ -10,7 +10,7 @@ import { BOOKING_STATUS } from "@/lib/constants";
 import { formatDay, formatINR } from "@/lib/format";
 import type { Option } from "@/lib/types";
 import type { Grid, GridCell, GridRoom } from "@/server/services/booking/grid";
-import { BOOKING_BASE } from "./BookingListView";
+import { BOOKING_BASE } from "./bookingConfig";
 
 const DAY = 86_400_000;
 const RANGES = [7, 14, 30];
