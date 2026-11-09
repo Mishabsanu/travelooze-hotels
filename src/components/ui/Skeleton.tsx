@@ -246,3 +246,28 @@ export function BoardSkeleton() {
     </div>
   );
 }
+
+/** Month calendar: toolbar, 7 × 5 day cells and the day list beside it. */
+export function CalendarSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading" className="space-y-5">
+      <HeaderSkeleton action={false} />
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-4">
+        <div className="bg-white border border-line p-3">
+          <Bone className="h-6 w-72 mb-3" />
+          <div className="grid grid-cols-7 gap-1.5">
+            {Array.from({ length: 35 }, (_, i) => (
+              <Bone key={i} className="h-16 sm:h-[92px] rounded-lg" />
+            ))}
+          </div>
+        </div>
+        <div className="bg-white border border-line p-3 space-y-3">
+          <Bone className="h-4 w-40" />
+          {Array.from({ length: 8 }, (_, i) => (
+            <Bone key={i} className="h-9 w-full" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
