@@ -35,9 +35,11 @@ export async function BookingGridPage({ searchParams }: { searchParams: SearchPa
     if (first(sp.from)) from = parseDay(first(sp.from)!);
   } catch {}
   const days = [7, 14, 30].includes(Number(first(sp.days))) ? Number(first(sp.days)) : 14;
-  const typeOptions = (await listRoomTypeOptions(r.user, r.hotel)).map((o) => ({ value: o.value, label: o.label.replace(/ \(\w+\)$/, "") }));
-  const roomType = typeOptions.find((o) => o.value === first(sp.roomType))?.value ?? "";
-  const grid = await getGrid(r.hotel, from, days, roomType || undefined);
+  // Room types and the grid load in parallel (getGrid only returns rooms of this hotel, so a foreign type id shows nothing)
+  const requestedType = first(sp.roomType) ?? "";
+  const [types, grid] = await Promise.all([listRoomTypeOptions(r.user, r.hotel), getGrid(r.hotel, from, days, requestedType || undefined)]);
+  const typeOptions = types.map((o) => ({ value: o.value, label: o.label.replace(/ \(\w+\)$/, "") }));
+  const roomType = typeOptions.some((o) => o.value === requestedType) ? requestedType : "";
 
   return (
     <>

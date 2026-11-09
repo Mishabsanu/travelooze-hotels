@@ -16,10 +16,24 @@ export async function loadSessionUser(token?: string): Promise<SessionUser | nul
   if (!session || !isValidObjectId(session.uid)) return null;
 
   await connectDB();
-  const user = await User.findById(session.uid).select("name email status role allHotels hotels").lean();
+  // One round-trip to the database (user + role together): this runs on every page and API call
+  const [user] = await User.aggregate<{
+    _id: Types.ObjectId;
+    name: string;
+    email: string;
+    status: string;
+    allHotels?: boolean;
+    hotels?: Types.ObjectId[];
+    role?: RoleDoc;
+  }>([
+    { $match: { _id: new Types.ObjectId(session.uid) } },
+    { $limit: 1 },
+    { $project: { name: 1, email: 1, status: 1, role: 1, allHotels: 1, hotels: 1 } },
+    { $lookup: { from: Role.collection.name, localField: "role", foreignField: "_id", as: "role" } },
+    { $set: { role: { $first: "$role" } } },
+  ]);
   if (!user || user.status !== "active") return null;
-
-  const role = await Role.findById(user.role).lean<RoleDoc>();
+  const role = user.role;
   if (!role || role.status !== "active") return null;
 
   return {

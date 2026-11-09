@@ -7,6 +7,9 @@ import type { SessionUser } from "@/lib/types";
 
 const SessionContext = createContext<SessionUser | null>(null);
 
+/** Time of the last /api/auth/me check (module level so it survives re-renders). */
+let lastCheck = Date.now();
+
 /**
  * Starts with the user from the server layout (no loading flash). The layout is not re-rendered on
  * client navigation, so the session is re-read on every route change and when the tab regains focus:
@@ -26,6 +29,9 @@ export function SessionProvider({ user, children }: { user: SessionUser; childre
   useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
+      // Throttled: at most one check per 30 s while clicking around (the API enforces permissions anyway)
+      if (Date.now() - lastCheck < 30_000) return;
+      lastCheck = Date.now();
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store", credentials: "same-origin" });
         if (!res.ok) return;

@@ -93,7 +93,7 @@ export function HotelForm({ initial }: { initial?: Hotel }) {
   const onSubmit = useApiSubmit<HotelInput, Hotel>({
     request: (values) => (initial ? api.update(initial._id, values) : api.create(values)),
     successMessage: initial ? "Hotel updated" : "Hotel created",
-    redirectTo: (h) => `${HOTEL_UI.basePath}/${h._id}`,
+    redirectTo: HOTEL_UI.basePath,
   });
 
   return (

@@ -124,7 +124,7 @@ export function RoomCreateForm({ hotelOptions, typeOptions, defaultHotel }: { ho
   const onSubmit = useApiSubmit<RoomCreateInput, { created: number; skipped: string[] }>({
     request: (values) => apiRequest(ROOM_UI.apiBase, "POST", values),
     successMessage: "Rooms saved",
-    redirectTo: (r) => (r.created ? ROOM_UI.basePath : `${ROOM_UI.basePath}/new`),
+    redirectTo: ROOM_UI.basePath,
     onSuccess: (r) => r.skipped.length && toast.info(`${r.created} added. Already existed: ${r.skipped.join(", ")}`),
   });
   const start = { ...emptyRoomCreate, hotel: defaultHotel ?? (hotelOptions.length === 1 ? hotelOptions[0].value : "") };

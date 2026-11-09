@@ -16,7 +16,7 @@ export default {
         head: "#f9fafb",
       },
       fontFamily: {
-        sans: ["var(--font-jakarta)", "var(--font-inter)", "Plus Jakarta Sans", "Inter", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+        sans: ["var(--font-jakarta)", "Plus Jakarta Sans", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
         mono: ["var(--font-mono-face)", "JetBrains Mono", "ui-monospace", "monospace"],
       },
       spacing: { 4.5: "1.125rem" },

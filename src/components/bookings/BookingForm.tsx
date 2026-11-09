@@ -16,7 +16,6 @@ import type { Option } from "@/lib/types";
 import { bookingSchema, type BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi";
-import { BOOKING_BASE } from "./BookingListView";
 import { RoomPicker } from "./RoomPicker";
 
 const PLAN_OPTIONS = MEAL_PLAN_CODES.map((c) => ({ value: c, label: MEAL_PLANS[c].label }));
@@ -94,7 +93,7 @@ export function BookingForm(p: BookingFormProps) {
       return booking;
     },
     successMessage: "Booking confirmed",
-    redirectTo: (b) => `${BOOKING_BASE}/${b._id}`,
+    redirectTo: p.backHref,
   });
 
   return (

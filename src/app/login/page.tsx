@@ -53,8 +53,6 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
       <div className="flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={LOGO_SRC} alt={APP_NAME} className="h-20 w-auto mb-8" />
           <h2 className="text-xl font-black text-slate-900">Welcome back</h2>
           <p className="text-xs text-slate-500 mt-1 mb-6">Sign in with your email or mobile number.</p>
           <LoginForm next={next} />

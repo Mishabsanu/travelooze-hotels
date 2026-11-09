@@ -107,7 +107,7 @@ export function AgentForm({ initial }: { initial?: Agent }) {
   const onSubmit = useApiSubmit<AgentInput, Agent>({
     request: (values) => (initial ? api.update(initial._id, values) : api.create(values)),
     successMessage: initial ? "Agent updated" : "Agent created",
-    redirectTo: (a) => `${AGENT_UI.basePath}/${a._id}`,
+    redirectTo: AGENT_UI.basePath,
   });
 
   return (

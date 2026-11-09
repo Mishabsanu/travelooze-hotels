@@ -113,5 +113,10 @@ const BookingSchema = new Schema<BookingDoc>(
   { timestamps: true }
 );
 BookingSchema.index({ createdAt: -1 });
+// Indexes for the busiest screens (bookings list, arrivals / departures, agent balances)
+BookingSchema.index({ hotel: 1, checkIn: -1 });
+BookingSchema.index({ hotel: 1, status: 1, checkIn: 1 });
+BookingSchema.index({ status: 1, checkOut: 1 });
+BookingSchema.index({ agent: 1, billTo: 1, status: 1 });
 
 export const Booking: Model<BookingDoc> = (models.Booking as Model<BookingDoc>) || model<BookingDoc>("Booking", BookingSchema);
