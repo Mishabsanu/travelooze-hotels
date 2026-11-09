@@ -1,5 +1,6 @@
 import { agentSchema } from "@/lib/validation/agent.schema";
 import { can } from "@/lib/permissions";
+import { hotelScope } from "@/server/auth/session";
 import { AppError } from "@/server/http/errors";
 import { apiHandler, readBody } from "@/server/http/handler";
 import { parseListQuery } from "@/server/http/query";
@@ -12,7 +13,7 @@ export const GET = apiHandler("authenticated", async ({ req, user }) => {
     return { options: await listAgentOptions() };
   }
   if (!can(user, "agent", "view")) throw new AppError("You do not have permission to perform this action", 403);
-  return listAgents(parseListQuery(params));
+  return listAgents(parseListQuery(params), hotelScope(user));
 });
 
 export const POST = apiHandler({ module: "agent", action: "create" }, async ({ req, user }) =>

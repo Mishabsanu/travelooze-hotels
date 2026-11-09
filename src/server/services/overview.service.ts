@@ -48,7 +48,7 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
     Booking.countDocuments({ ...scope, status: "confirmed", checkIn: { $lt: today } }),
     // Revenue and agent dues in the same parallel batch (one wait instead of three)
     can(user, "report", "view") ? monthRevenue(scope, monthStart) : undefined,
-    can(user, "agent", "view") ? topAgentDues() : undefined,
+    can(user, "agent", "view") ? topAgentDues(scope) : undefined,
   ]);
   const [rc, oc, ac, dc] = [rooms, occupied, arrivals, departures].map(countBy);
 
@@ -93,8 +93,8 @@ async function monthRevenue(scope: Record<string, unknown>, monthStart: Date): P
   return { revenue: m?.revenue ?? 0, bookings: m?.bookings ?? 0, collected: m?.collected ?? 0 };
 }
 
-async function topAgentDues(): Promise<Overview["agentDues"]> {
-  const balances = await agentBalances();
+async function topAgentDues(scope: Record<string, unknown>): Promise<Overview["agentDues"]> {
+  const balances = await agentBalances(undefined, scope);
   const ids = [...balances.entries()].filter(([, b]) => b.due > 0).map(([id]) => id);
   if (!ids.length) return [];
   const agents = await Agent.find({ _id: { $in: ids } }).select("name creditLimit").lean();

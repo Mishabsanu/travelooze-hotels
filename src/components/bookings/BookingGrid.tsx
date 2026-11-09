@@ -8,6 +8,7 @@ import { useListParams } from "@/hooks/useListParams";
 import { canBooking } from "@/lib/bookingAccess";
 import { BOOKING_STATUS } from "@/lib/constants";
 import { formatDay, formatINR } from "@/lib/format";
+import { timeLabel } from "@/lib/stayTimes";
 import type { Option } from "@/lib/types";
 import type { Grid, GridCell, GridRoom } from "@/server/services/booking/grid";
 import { BOOKING_BASE } from "./bookingConfig";
@@ -249,7 +250,7 @@ function RoomRow({
       </td>
       {segments.map(({ start, span, cell }) => {
         if (cell) {
-          const title = `${cell.bookingNo} · ${cell.guest}\n${formatDay(cell.checkIn)} → ${formatDay(cell.checkOut)} · ${cell.mealPlan}\n${BOOKING_STATUS[cell.status]}${cell.agent ? ` · ${cell.agent}` : ""}${cell.balance > 0 ? `\nBalance ${formatINR(cell.balance)}` : ""}`;
+          const title = `${cell.bookingNo} · ${cell.guest}\n${formatDay(cell.checkIn)} ${timeLabel(cell.arrivalTime)} → ${formatDay(cell.checkOut)} ${timeLabel(cell.departureTime)} · ${cell.mealPlan}\n${BOOKING_STATUS[cell.status]}${cell.agent ? ` · ${cell.agent}` : ""}${cell.balance > 0 ? `\nBalance ${formatINR(cell.balance)}` : ""}`;
           return (
             <td key={start} colSpan={span} className="p-0.5 border-r border-line">
               <Link href={`${BOOKING_BASE}/${cell._id}`} title={title} className={`flex items-center h-7 px-2 rounded border text-[11px] font-semibold truncate hover:brightness-95 ${barClass(cell)}`}>

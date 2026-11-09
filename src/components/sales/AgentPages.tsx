@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { canBooking, canListBookings } from "@/lib/bookingAccess";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { can } from "@/lib/permissions";
-import { getPageAccess } from "@/server/auth/session";
+import { getPageAccess, hotelScope } from "@/server/auth/session";
 import { parseListQuery } from "@/server/http/query";
 import { getAgent, listAgents } from "@/server/services/agent.service";
 import { listBookings } from "@/server/services/booking/booking.service";
@@ -26,7 +26,7 @@ const btnClass =
 export async function AgentListPage({ searchParams }: { searchParams: SearchParams }) {
   const { user, allowed } = await getPageAccess("agent", "view");
   if (!allowed) return <AccessDenied />;
-  const data = await listAgents(parseListQuery(await searchParams));
+  const data = await listAgents(parseListQuery(await searchParams), hotelScope(user));
   return (
     <>
       <PageHeader
@@ -62,7 +62,7 @@ export async function AgentDetailPage({ params, searchParams }: { params: IdPara
   const { user, allowed } = await getPageAccess("agent", "view");
   if (!allowed) return <AccessDenied />;
   const { id } = await params;
-  const agent = await orNotFound(getAgent(id));
+  const agent = await orNotFound(getAgent(id, hotelScope(user)));
   const showBookings = canListBookings(user);
   const query = parseListQuery(await searchParams, ["hotel", "stay", "mealPlan"]);
   query.filters.agent = id;

@@ -26,10 +26,17 @@ export interface SessionUser {
   roleName: string;
   isSuperAdmin: boolean;
   permissions: PermissionMap;
-  /** Works at every hotel (Super Admin, or "All hotels" ticked on the user) */
+  /**
+   * EFFECTIVE hotel scope used by every query and permission check: the hotel chosen in the header
+   * switcher, or all assigned hotels when "All my hotels" is chosen.
+   */
   allHotels: boolean;
-  /** Hotels this user is assigned to (ignored when allHotels) */
   hotelIds: string[];
+  /** What the user is assigned to (the switcher offers these) */
+  assignedAll: boolean;
+  assignedHotelIds: string[];
+  /** Hotel chosen in the header switcher (null = all assigned hotels) */
+  activeHotelId: string | null;
 }
 
 export interface Role {

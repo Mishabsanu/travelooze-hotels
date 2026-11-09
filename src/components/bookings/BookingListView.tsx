@@ -6,7 +6,8 @@ import { DataTable } from "@/components/table/DataTable";
 import type { Column, FilterConfig } from "@/components/table/types";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { BOOKING_STATUS, MEAL_PLAN_CODES, toOptions, type BookingStatus } from "@/lib/constants";
-import { formatDay, formatINR } from "@/lib/format";
+import { formatDateTime, formatDay, formatINR } from "@/lib/format";
+import { isEarlyCheckIn, isLateCheckOut, timeLabel } from "@/lib/stayTimes";
 import type { Booking } from "@/lib/hotelTypes";
 import type { Option, Paginated } from "@/lib/types";
 
@@ -94,10 +95,38 @@ export function BookingListView({ data, hotelOptions, agentOnly, itemName = "boo
               {formatDay(r.checkIn)} → {formatDay(r.checkOut)}
             </span>
             <span className="text-[10.5px] text-slate-400">
-              {r.nights} night{r.nights > 1 ? "s" : ""} · {r.adults}A{r.children ? ` ${r.children}C` : ""}
+              {r.nights} night{r.nights > 1 ? "s" : ""} · {r.adults}A{r.children ? ` ${r.children}C` : ""} · ETA{" "}
+              {timeLabel(r.arrivalTime || r.hotel?.checkInTime || "12:00")}
             </span>
           </span>
         ),
+      },
+      {
+        key: "checkedInAt",
+        label: "Checked In",
+        render: (r) =>
+          r.checkedInAt ? (
+            <span className="flex flex-col">
+              <span>{formatDateTime(r.checkedInAt)}</span>
+              {isEarlyCheckIn(r) && <span className="text-[10px] font-bold text-amber-700">EARLY</span>}
+            </span>
+          ) : (
+            <span className="text-slate-300">—</span>
+          ),
+      },
+      {
+        key: "checkedOutAt",
+        label: "Checked Out",
+        render: (r) =>
+          r.checkedOutAt ? (
+            <span className="flex flex-col">
+              <span>{formatDateTime(r.checkedOutAt)}</span>
+              {isLateCheckOut(r) && <span className="text-[10px] font-bold text-amber-700">LATE</span>}
+            </span>
+          ) : (
+            <span className="text-slate-300">—</span>
+          ),
+        hiddenByDefault: true,
       },
       { key: "mealPlan", label: "Plan", align: "center", render: (r) => <Badge variant="neutral">{r.mealPlan}</Badge> },
       { key: "source", label: "Source", render: (r) => <SourceBadge b={r} /> },

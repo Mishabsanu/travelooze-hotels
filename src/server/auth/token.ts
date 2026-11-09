@@ -2,6 +2,8 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE = "hotel_session";
+/** Hotel chosen in the header switcher (not a secret: access is re-checked against the user on every request) */
+export const HOTEL_COOKIE = "hotel_ctx";
 export const SESSION_MAX_AGE_S = 12 * 60 * 60; // 12 hours
 export const REMEMBER_MAX_AGE_S = 30 * 24 * 60 * 60; // 30 days
 

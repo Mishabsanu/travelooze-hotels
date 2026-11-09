@@ -8,8 +8,8 @@ export const bookingApi = {
     apiRequest<{ nights: number; types: AvailabilityType[] }>(
       `/api/bookings/availability?${new URLSearchParams({ hotel, checkIn, checkOut })}`
     ),
-  checkIn: (id: string) => apiRequest<Booking>(`/api/bookings/${id}/check-in`, "POST", {}),
-  checkOut: (id: string, allowDue = false) => apiRequest<Booking>(`/api/bookings/${id}/check-out`, "POST", { allowDue }),
+  checkIn: (id: string, at = "") => apiRequest<Booking>(`/api/bookings/${id}/check-in`, "POST", { at }),
+  checkOut: (id: string, allowDue = false, at = "") => apiRequest<Booking>(`/api/bookings/${id}/check-out`, "POST", { allowDue, at }),
   cancel: (id: string, body: { reason: string; noShow: boolean }) => apiRequest<Booking>(`/api/bookings/${id}/cancel`, "POST", body),
   pay: (id: string, body: unknown) => apiRequest<Booking>(`/api/bookings/${id}/payments`, "POST", body),
 

@@ -4,7 +4,7 @@ import type { HotelCategory } from "@/lib/constants";
 import type { Hotel } from "@/lib/hotelTypes";
 import type { Option, Paginated, SessionUser } from "@/lib/types";
 import type { HotelInput } from "@/lib/validation/hotel.schema";
-import { canAccessHotel } from "../auth/session";
+import { assignedHotelScope, canAccessHotel } from "../auth/session";
 import { AppError, notFound } from "../http/errors";
 import { type Filter, type ListQuery, listSort, paginate, searchFilter, statusFilter } from "../http/query";
 import { Booking } from "../models/Booking";
@@ -34,7 +34,7 @@ async function roomCounts(ids: Types.ObjectId[]) {
 }
 
 export async function listHotels(query: ListQuery, user: SessionUser): Promise<Paginated<Hotel>> {
-  const filter: Filter = { ...hotelIdFilter(user), ...searchFilter(query.search, SEARCH_FIELDS), ...statusFilter(query.status) };
+  const filter: Filter = { ...assignedHotelScope(user), ...searchFilter(query.search, SEARCH_FIELDS), ...statusFilter(query.status) };
   if (query.filters.category) filter.category = query.filters.category;
   const [docs, total] = await Promise.all([
     HotelModel.find(filter)
@@ -53,7 +53,7 @@ export async function listHotels(query: ListQuery, user: SessionUser): Promise<P
 
 export async function getHotel(id: string, user: SessionUser): Promise<Hotel> {
   if (!isValidObjectId(id)) throw notFound("Hotel");
-  assertHotelAccess(user, id);
+  if (!(user.assignedAll || user.assignedHotelIds.includes(id))) throw new AppError("You are not assigned to this hotel", 403);
   const doc = await HotelModel.findById(id).select("-__v").populate(CREATOR).lean();
   if (!doc) throw notFound("Hotel");
   const counts = await roomCounts([doc._id]);
@@ -94,4 +94,10 @@ export async function listHotelOptions(user: SessionUser, { includeInactive = fa
 export async function listAllHotelOptions(): Promise<Option[]> {
   const docs = await HotelModel.find().sort({ name: 1 }).select("name status").limit(500).lean();
   return docs.map((d) => ({ value: String(d._id), label: d.status === "active" ? d.name : `${d.name} (inactive)` }));
+}
+
+/** Hotels offered by the header switcher (every hotel the user is assigned to, active only). */
+export async function listSwitcherHotels(user: SessionUser): Promise<Option[]> {
+  const docs = await HotelModel.find({ ...assignedHotelScope(user), status: "active" }).sort({ name: 1 }).select("name").limit(500).lean();
+  return docs.map((d) => ({ value: String(d._id), label: d.name }));
 }

@@ -11,6 +11,9 @@ export interface HotelDoc {
   phone: string;
   email: string;
   gstin: string;
+  /** Standard check-in / check-out time, "HH:mm" (IST) */
+  checkInTime: string;
+  checkOutTime: string;
   status: RecordStatus;
   createdBy?: Types.ObjectId;
   createdAt: Date;
@@ -27,6 +30,8 @@ const HotelSchema = new Schema<HotelDoc>(
     phone: { type: String, default: "", trim: true },
     email: { type: String, default: "", trim: true, lowercase: true },
     gstin: { type: String, default: "", trim: true, uppercase: true },
+    checkInTime: { type: String, default: "12:00", match: /^([01]\d|2[0-3]):[0-5]\d$/ },
+    checkOutTime: { type: String, default: "11:00", match: /^([01]\d|2[0-3]):[0-5]\d$/ },
     status: { type: String, enum: ["active", "inactive"], default: "active", index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
   },

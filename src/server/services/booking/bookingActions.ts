@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions";
 import { round2 } from "@/lib/pricing";
 import type { SessionUser } from "@/lib/types";
 import type { CancelInput, PaymentInput } from "@/lib/validation/booking.schema";
+import { parseIstLocal } from "@/lib/stayTimes";
 import { AppError } from "../../http/errors";
 import { Booking as BookingModel } from "../../models/Booking";
 import { Room } from "../../models/Room";
@@ -25,27 +26,48 @@ async function load(id: string, user: SessionUser) {
   return { view, doc };
 }
 
-export async function checkInBooking(id: string, user: SessionUser): Promise<Booking> {
+/**
+ * Actual check-in / check-out moment: typed in the pop-up as IST "YYYY-MM-DDTHH:mm" (blank = now).
+ * It may be back-dated (entered late) but never set in the future.
+ */
+function actualMoment(at: string | undefined, label: string): Date {
+  if (!at) return new Date();
+  const d = parseIstLocal(at);
+  if (Number.isNaN(d.getTime())) throw new AppError(`${label} time is invalid`, 422, { at: "Invalid date / time" });
+  if (d.getTime() > Date.now() + 5 * 60_000) throw new AppError(`${label} time cannot be in the future`, 422, { at: "Cannot be in the future" });
+  return d;
+}
+
+export async function checkInBooking(id: string, user: SessionUser, at?: string): Promise<Booking> {
   if (!can(user, "check_in_out", "update")) throw forbid("check guests in");
   const { doc } = await load(id, user);
   if (doc.status !== "confirmed") throw new AppError("Only confirmed bookings can be checked in", 409);
   if (doc.checkIn > todayIST()) throw new AppError("This guest is arriving on a later date", 409);
   if (!doc.guest.idFiles.length) throw new AppError("Upload the guest's Aadhaar / ID before check-in", 409);
+  const when = actualMoment(at, "Check-in");
+  // Early check-in is allowed, but not before the day before arrival
+  if (when < new Date(doc.checkIn.getTime() - 86_400_000 + -5.5 * 3600_000)) {
+    throw new AppError("Check-in time is too early for this booking", 422, { at: "Too early" });
+  }
   doc.status = "checked_in";
-  doc.checkedInAt = new Date();
+  doc.checkedInAt = when;
   await doc.save();
   return getBooking(id, user);
 }
 
-export async function checkOutBooking(id: string, allowDue: boolean, user: SessionUser): Promise<Booking> {
+export async function checkOutBooking(id: string, allowDue: boolean, user: SessionUser, at?: string): Promise<Booking> {
   if (!can(user, "check_in_out", "update")) throw forbid("check guests out");
   const { doc, view } = await load(id, user);
   if (doc.status !== "checked_in") throw new AppError("Guest is not checked in", 409);
   if (view.balance > 0 && doc.billTo === "guest" && !(allowDue && user.isSuperAdmin)) {
     throw new AppError(`Collect the balance of ₹${view.balance} before check-out`, 409);
   }
+  const when = actualMoment(at, "Check-out");
+  if (doc.checkedInAt && when < doc.checkedInAt) {
+    throw new AppError("Check-out time cannot be before the check-in time", 422, { at: "Before check-in" });
+  }
   doc.status = "checked_out";
-  doc.checkedOutAt = new Date();
+  doc.checkedOutAt = when;
   await doc.save();
   // Leaving early frees tonight onwards; rooms go to housekeeping
   await releaseRoomNights(doc._id, todayIST());
@@ -85,6 +107,8 @@ export interface GuestUpdate {
   children: number;
   agentRef: string;
   notes: string;
+  arrivalTime?: string;
+  departureTime?: string;
 }
 
 /** Edits guest details / notes (dates and rooms are changed by cancelling and re-booking). */
@@ -99,6 +123,8 @@ export async function updateGuest(id: string, input: GuestUpdate, user: SessionU
   doc.children = input.children;
   if (doc.source === "agent") doc.agentRef = input.agentRef;
   doc.notes = input.notes;
+  if (input.arrivalTime) doc.arrivalTime = input.arrivalTime;
+  if (input.departureTime) doc.departureTime = input.departureTime;
   await doc.save();
   return getBooking(id, user);
 }

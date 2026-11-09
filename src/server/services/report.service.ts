@@ -69,7 +69,7 @@ export async function getReport(user: SessionUser, fromStr?: string, toStr?: str
 
   let agents: Report["agents"] = [];
   if (withAgents) {
-    const balances = await agentBalances();
+    const balances = await agentBalances(undefined, hotelScope(user));
     const docs = await Agent.find({ _id: { $in: [...balances.keys()] } }).select("code name creditLimit").lean();
     agents = docs
       .map((a) => ({ _id: String(a._id), code: a.code, name: a.name, creditLimit: a.creditLimit, ...balances.get(String(a._id))! }))

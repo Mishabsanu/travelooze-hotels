@@ -16,10 +16,23 @@ export const hotelSchema = Yup.object({
   phone: optionalText("Phone", 30),
   email: optionalEmail("Email"),
   gstin: Yup.string().trim().uppercase().default("").matches(GSTIN, "GSTIN must be 15 characters, e.g. 32ABCDE1234F1Z5"),
+  checkInTime: Yup.string().default("12:00").matches(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM, e.g. 12:00"),
+  checkOutTime: Yup.string().default("11:00").matches(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM, e.g. 11:00"),
   status: statusField,
 });
 export type HotelInput = Yup.InferType<typeof hotelSchema>;
-export const emptyHotel: HotelInput = { code: "", name: "", category: "standard", address: "", phone: "", email: "", gstin: "", status: "active" };
+export const emptyHotel: HotelInput = {
+  code: "",
+  name: "",
+  category: "standard",
+  address: "",
+  phone: "",
+  email: "",
+  gstin: "",
+  checkInTime: "12:00",
+  checkOutTime: "11:00",
+  status: "active",
+};
 
 const rate = (plan: string) => Yup.number().typeError(`${plan} rate must be a number`).min(0, "Cannot be negative").required(`${plan} rate is required`);
 

@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions";
 import { priceStay, round2 } from "@/lib/pricing";
 import type { Paginated, SessionUser } from "@/lib/types";
 import type { BookingInput } from "@/lib/validation/booking.schema";
+import { DEFAULT_CHECK_IN, DEFAULT_CHECK_OUT } from "@/lib/stayTimes";
 import { canAccessHotel, hotelScope } from "../../auth/session";
 import { AppError, notFound } from "../../http/errors";
 import { type Filter, type ListQuery, escapeRegex, listSort, paginate } from "../../http/query";
@@ -23,7 +24,7 @@ import { addDays, nightsBetween, parseDay, todayIST } from "../stay";
 import { holdRoomNights, releaseRoomNights } from "./availability";
 
 const POPULATE = [
-  { path: "hotel", select: "name code address phone gstin" },
+  { path: "hotel", select: "name code address phone gstin checkInTime checkOutTime" },
   { path: "agent", select: "name gstin" },
   { path: "createdBy", select: "name -_id" },
   { path: "payments.by", select: "name -_id" },
@@ -164,6 +165,9 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
       children: input.children,
       checkIn,
       checkOut,
+      // Blank = the hotel's standard times
+      arrivalTime: input.arrivalTime || hotel.checkInTime || DEFAULT_CHECK_IN,
+      departureTime: input.departureTime || hotel.checkOutTime || DEFAULT_CHECK_OUT,
       nights,
       mealPlan,
       rooms: lines,

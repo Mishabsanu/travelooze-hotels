@@ -18,6 +18,8 @@ export interface GridCell {
   mealPlan: MealPlan;
   checkIn: string;
   checkOut: string;
+  arrivalTime: string;
+  departureTime: string;
   balance: number;
 }
 
@@ -51,6 +53,8 @@ type PopulatedNight = {
     guest: { name: string };
     checkIn: Date;
     checkOut: Date;
+    arrivalTime?: string;
+    departureTime?: string;
     total: number;
     payments: { amount: number }[];
   } | null;
@@ -72,7 +76,7 @@ export async function getGrid(hotelId: string, from: Date, days: number, roomTyp
     RoomNight.find({ hotel: hotelId, date: { $gte: from, $lt: to } })
       .populate({
         path: "booking",
-        select: "bookingNo status source agent mealPlan guest.name checkIn checkOut total payments.amount",
+        select: "bookingNo status source agent mealPlan guest.name checkIn checkOut arrivalTime departureTime total payments.amount",
         populate: { path: "agent", select: "name" },
       })
       .lean<PopulatedNight[]>(),
@@ -92,6 +96,8 @@ export async function getGrid(hotelId: string, from: Date, days: number, roomTyp
       mealPlan: b.mealPlan,
       checkIn: b.checkIn.toISOString(),
       checkOut: b.checkOut.toISOString(),
+      arrivalTime: b.arrivalTime ?? "",
+      departureTime: b.departureTime ?? "",
       balance: Math.round((b.total - (b.payments ?? []).reduce((s, p) => s + p.amount, 0)) * 100) / 100,
     });
   }
@@ -131,7 +137,7 @@ export interface BoardRoom {
   housekeeping: RoomStatus;
   state: RoomState;
   /** Booking that explains the state (guest in room, arriving, leaving) */
-  booking: { _id: string; bookingNo: string; guest: string; checkOut: string; source: string; balance: number } | null;
+  booking: { _id: string; bookingNo: string; guest: string; checkOut: string; source: string; balance: number; arrivalTime: string; departureTime: string } | null;
 }
 
 /** What every room of a hotel is doing today: in-house, arriving, leaving, vacant. */
@@ -144,11 +150,11 @@ export async function getRoomBoard(hotelId: string, today: Date): Promise<BoardR
       .lean(),
     RoomType.find({ hotel: hotelId }).select("name").lean(),
     RoomNight.find({ hotel: hotelId, date: today })
-      .populate({ path: "booking", select: "bookingNo status source guest.name checkIn checkOut total payments.amount" })
+      .populate({ path: "booking", select: "bookingNo status source guest.name checkIn checkOut arrivalTime departureTime total payments.amount" })
       .lean<PopulatedNight[]>(),
     // Checked-in guests whose stay ends today (their room-night for tonight is no longer held)
     Booking.find({ hotel: hotelId, status: "checked_in", checkOut: { $lte: today } })
-      .select("bookingNo source guest.name checkOut total payments.amount rooms.room")
+      .select("bookingNo source guest.name checkOut arrivalTime departureTime total payments.amount rooms.room")
       .lean(),
   ]);
   const typeName = new Map(types.map((t) => [String(t._id), t.name]));
@@ -166,10 +172,10 @@ export async function getRoomBoard(hotelId: string, today: Date): Promise<BoardR
     let booking: BoardRoom["booking"] = null;
     if (o) {
       state = "due_out";
-      booking = { _id: String(o._id), bookingNo: o.bookingNo, guest: o.guest.name, checkOut: o.checkOut.toISOString(), source: o.source, balance: balanceOf(o) };
+      booking = { _id: String(o._id), bookingNo: o.bookingNo, guest: o.guest.name, checkOut: o.checkOut.toISOString(), source: o.source, balance: balanceOf(o), arrivalTime: o.arrivalTime ?? "", departureTime: o.departureTime ?? "" };
     } else if (n) {
       state = n.status === "checked_in" ? "occupied" : n.checkIn.getTime() === today.getTime() ? "arriving" : "reserved";
-      booking = { _id: String(n._id), bookingNo: n.bookingNo, guest: n.guest.name, checkOut: n.checkOut.toISOString(), source: n.source, balance: balanceOf(n) };
+      booking = { _id: String(n._id), bookingNo: n.bookingNo, guest: n.guest.name, checkOut: n.checkOut.toISOString(), source: n.source, balance: balanceOf(n), arrivalTime: n.arrivalTime ?? "", departureTime: n.departureTime ?? "" };
     }
     return { _id: id, number: r.number, floor: r.floor, type: typeName.get(String(r.roomType)) ?? "", housekeeping: r.housekeeping, state, booking };
   });

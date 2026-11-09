@@ -1,4 +1,5 @@
 import * as Yup from "yup";
+import { optionalTime } from "@/lib/validation/booking.schema";
 import { optionalText, requiredPhone, requiredText } from "@/lib/validation/common";
 import { apiHandler, readBody } from "@/server/http/handler";
 import { getBooking } from "@/server/services/booking/booking.service";
@@ -12,6 +13,8 @@ const guestSchema = Yup.object({
   children: Yup.number().integer().min(0).default(0),
   agentRef: optionalText("Agent reference", 60),
   notes: optionalText("Notes", 1000),
+  arrivalTime: optionalTime("Arrival time"),
+  departureTime: optionalTime("Departure time"),
 });
 
 export const GET = apiHandler<{ id: string }>("authenticated", async ({ params, user }) => getBooking(params.id, user));

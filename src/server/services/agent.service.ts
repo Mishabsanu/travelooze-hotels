@@ -22,8 +22,9 @@ export interface AgentBalance {
 }
 
 /** Billed-to-agent totals minus payments, per agent (cancelled bookings excluded). */
-export async function agentBalances(agentIds?: Types.ObjectId[]): Promise<Map<string, AgentBalance>> {
-  const match: Filter = { source: "agent", billTo: "agent", status: { $ne: "cancelled" } };
+/** `scope` limits to some hotels (header switcher); leave empty for the company-wide credit check. */
+export async function agentBalances(agentIds?: Types.ObjectId[], scope: Filter = {}): Promise<Map<string, AgentBalance>> {
+  const match: Filter = { source: "agent", billTo: "agent", status: { $ne: "cancelled" }, ...scope };
   if (agentIds) match.agent = { $in: agentIds };
   const rows = await Booking.aggregate<{ _id: Types.ObjectId; billed: number; paid: number; count: number }>([
     { $match: match },
@@ -32,7 +33,7 @@ export async function agentBalances(agentIds?: Types.ObjectId[]): Promise<Map<st
   return new Map(rows.map((r) => [String(r._id), { billed: round2(r.billed), paid: round2(r.paid), count: r.count, due: round2(r.billed - r.paid) }]));
 }
 
-export async function listAgents(query: ListQuery): Promise<Paginated<Agent>> {
+export async function listAgents(query: ListQuery, scope: Filter = {}): Promise<Paginated<Agent>> {
   const filter: Filter = { ...searchFilter(query.search, SEARCH_FIELDS), ...statusFilter(query.status) };
   const [docs, total] = await Promise.all([
     AgentModel.find(filter)
@@ -44,7 +45,7 @@ export async function listAgents(query: ListQuery): Promise<Paginated<Agent>> {
       .lean(),
     AgentModel.countDocuments(filter),
   ]);
-  const balances = await agentBalances(docs.map((d) => d._id));
+  const balances = await agentBalances(docs.map((d) => d._id), scope);
   const items = toPlain<Agent[]>(docs).map((a) => ({
     ...a,
     outstanding: balances.get(a._id)?.due ?? 0,
@@ -53,11 +54,11 @@ export async function listAgents(query: ListQuery): Promise<Paginated<Agent>> {
   return paginate(items, total, query);
 }
 
-export async function getAgent(id: string): Promise<Agent & { balance: AgentBalance }> {
+export async function getAgent(id: string, scope: Filter = {}): Promise<Agent & { balance: AgentBalance }> {
   if (!isValidObjectId(id)) throw notFound("Agent");
   const doc = await AgentModel.findById(id).select("-__v").populate(CREATOR).lean();
   if (!doc) throw notFound("Agent");
-  const balance = (await agentBalances([doc._id])).get(id) ?? { billed: 0, paid: 0, due: 0, count: 0 };
+  const balance = (await agentBalances([doc._id], scope)).get(id) ?? { billed: 0, paid: 0, due: 0, count: 0 };
   return { ...toPlain<Agent>(doc), outstanding: balance.due, bookingCount: balance.count, balance };
 }
 

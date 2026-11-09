@@ -1,14 +1,15 @@
 "use client";
 
 import { APP_NAME } from "@/lib/brand";
-import { Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { findActiveModule, isActivePath, type NavModule } from "./navigation";
+import { HotelSwitcher } from "./HotelSwitcher";
 import { UserMenu } from "./UserMenu";
+import type { Option } from "@/lib/types";
 
 /** Three tiers, as in Sentinel: purple brand bar → module tabs → active module's sub-tabs. */
-export function TopHeader({ modules }: { modules: NavModule[] }) {
+export function TopHeader({ modules, hotels }: { modules: NavModule[]; hotels: Option[] }) {
   const pathname = usePathname() || "";
   const activeModule =
     findActiveModule(modules, pathname) ?? modules.find((m) => m.id === "home") ?? modules[0];
@@ -18,16 +19,8 @@ export function TopHeader({ modules }: { modules: NavModule[] }) {
       <header className="relative h-[50px] bg-brand text-white px-6 flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-wider truncate max-w-[280px]">{APP_NAME}</span>
 
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md lg:max-w-xl px-4 hidden md:block">
-          <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
-            <input
-              type="text"
-              readOnly
-              placeholder="Search modules and records"
-              className="w-full pl-10 pr-4 py-1.5 bg-white text-xs text-slate-800 placeholder-slate-400 rounded-full border border-white/20 focus:outline-none"
-            />
-          </div>
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-md lg:max-w-xl px-4 hidden md:flex justify-center">
+          <HotelSwitcher hotels={hotels} />
         </div>
 
         <div className="flex items-center gap-3.5 shrink-0">

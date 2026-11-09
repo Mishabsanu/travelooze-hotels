@@ -2,7 +2,8 @@ export function formatDate(value?: string | Date | null): string {
   if (!value) return "—";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  // Always India time, even on a UTC server (Vercel)
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
 }
 
 export function formatDateTime(value?: string | Date | null): string {
@@ -15,6 +16,8 @@ export function formatDateTime(value?: string | Date | null): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
   });
 }
 

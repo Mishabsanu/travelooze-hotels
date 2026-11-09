@@ -55,6 +55,8 @@ export function BookingForm(p: BookingFormProps) {
     checkIn: p.preset?.checkIn ?? p.today,
     checkOut: p.preset?.checkOut ?? (p.preset?.checkIn ? nextDay(p.preset.checkIn) : p.tomorrow),
     mealPlan: "CP",
+    arrivalTime: "",
+    departureTime: "",
     rooms: p.preset?.room ? [p.preset.room] : [],
     adults: 2,
     children: 0,
@@ -132,6 +134,8 @@ export function BookingForm(p: BookingFormProps) {
                 />
                 <TextField name="checkOut" label="Check-out" type="date" required min={values.checkIn} hint={nights ? `${nights} night${nights > 1 ? "s" : ""}` : undefined} />
                 <SelectField name="mealPlan" label="Meal Plan" required options={PLAN_OPTIONS} />
+                <TextField name="arrivalTime" label="Expected Arrival Time" type="time" hint="Blank = hotel standard" />
+                <TextField name="departureTime" label="Expected Departure Time" type="time" hint="Blank = hotel standard" />
                 <TextField name="adults" label="Adults" type="number" min={1} required />
                 <TextField name="children" label="Children" type="number" min={0} />
               </FormSection>

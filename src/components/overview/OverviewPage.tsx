@@ -21,7 +21,7 @@ export async function OverviewPage() {
 
   return (
     <>
-      <PageHeader title={`Welcome, ${user.name.split(" ")[0]}`} description={`${formatDay(o.today)} · ${user.roleName}${user.allHotels ? " · all hotels" : ""}`} />
+      <PageHeader title={`Welcome, ${user.name.split(" ")[0]}`} description={`${formatDay(o.today)} · ${user.roleName} · ${user.activeHotelId ? o.hotels[0]?.name ?? "" : user.allHotels ? "all hotels" : `${o.hotels.length} hotel(s)`}`} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         <StatCard label="Occupancy Tonight" value={`${occ}%`} hint={`${o.totals.occupied} of ${o.totals.rooms} rooms`} icon={BedDouble} />

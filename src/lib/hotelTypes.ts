@@ -10,6 +10,8 @@ export interface Hotel {
   phone: string;
   email: string;
   gstin: string;
+  checkInTime: string;
+  checkOutTime: string;
   status: RecordStatus;
   roomCount?: number;
   createdBy?: CreatorName | null;
@@ -82,7 +84,16 @@ export interface BookingPayment {
 export interface Booking {
   _id: string;
   bookingNo: string;
-  hotel: { _id: string; name: string; code: string; address?: string; phone?: string; gstin?: string } | null;
+  hotel: {
+    _id: string;
+    name: string;
+    code: string;
+    address?: string;
+    phone?: string;
+    gstin?: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+  } | null;
   source: "walkin" | "agent";
   agent: { _id: string; name: string; gstin?: string } | null;
   agentRef: string;
@@ -92,6 +103,8 @@ export interface Booking {
   children: number;
   checkIn: string;
   checkOut: string;
+  arrivalTime: string;
+  departureTime: string;
   nights: number;
   mealPlan: MealPlan;
   rooms: BookingRoom[];

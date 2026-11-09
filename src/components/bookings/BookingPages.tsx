@@ -2,6 +2,7 @@ import { CalendarCheck, Download, Plus } from "lucide-react";
 import Link from "next/link";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 import { APP_NAME, LOGO_SRC } from "@/lib/brand";
+import { isEarlyCheckIn, isLateCheckOut, timeLabel } from "@/lib/stayTimes";
 import { Badge } from "@/components/ui/Badge";
 import { DetailCard, DetailItem, DetailSection } from "@/components/ui/DetailCard";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -128,8 +129,35 @@ export async function BookingDetailPage({ params }: { params: IdParams }) {
         backHref={b.source === "agent" && agentBookingsOnly(user) ? "/dashboard/sales/agent-bookings" : BOOKING_BASE}
       >
         <DetailSection title="Stay">
-          <DetailItem label="Check-in" value={`${formatDay(b.checkIn)}${b.checkedInAt ? ` · in ${formatDateTime(b.checkedInAt)}` : ""}`} />
-          <DetailItem label="Check-out" value={`${formatDay(b.checkOut)}${b.checkedOutAt ? ` · out ${formatDateTime(b.checkedOutAt)}` : ""}`} />
+          <DetailItem label="Arrival" value={`${formatDay(b.checkIn)} · expected ${timeLabel(b.arrivalTime || b.hotel?.checkInTime || "12:00")}`} />
+          <DetailItem label="Departure" value={`${formatDay(b.checkOut)} · expected ${timeLabel(b.departureTime || b.hotel?.checkOutTime || "11:00")}`} />
+          <DetailItem
+            label="Checked In At"
+            value={
+              b.checkedInAt ? (
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                  {formatDateTime(b.checkedInAt)}
+                  {isEarlyCheckIn(b) && <Badge variant="warning">Early check-in</Badge>}
+                </span>
+              ) : (
+                "Not yet"
+              )
+            }
+          />
+          <DetailItem
+            label="Checked Out At"
+            value={
+              b.checkedOutAt ? (
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                  {formatDateTime(b.checkedOutAt)}
+                  {isLateCheckOut(b) && <Badge variant="warning">Late check-out</Badge>}
+                </span>
+              ) : (
+                "Not yet"
+              )
+            }
+          />
+          <DetailItem label="Hotel Times" value={`In ${timeLabel(b.hotel?.checkInTime || "12:00")} · Out ${timeLabel(b.hotel?.checkOutTime || "11:00")}`} />
           <DetailItem label="Nights / Guests" value={`${b.nights} night(s) · ${b.adults} adult(s)${b.children ? `, ${b.children} child` : ""}`} />
           <DetailItem label="Meal Plan" value={MEAL_PLANS[b.mealPlan].label} />
           {b.source === "agent" && <DetailItem label="Agent / Ref" value={`${b.agent?.name ?? "—"}${b.agentRef ? ` · ${b.agentRef}` : ""}`} />}

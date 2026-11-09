@@ -2,6 +2,13 @@ import * as Yup from "yup";
 import { MEAL_PLAN_CODES, PAYMENT_MODES } from "../constants";
 import { objectId, optionalText, requiredPhone, requiredText } from "./common";
 
+/** "HH:mm" or empty (empty = hotel standard time) */
+export const optionalTime = (label: string) =>
+  Yup.string().default("").matches(/^$|^([01]\d|2[0-3]):[0-5]\d$/, `${label} must be HH:MM`);
+
+/** Actual check-in / check-out moment from the pop-up, "YYYY-MM-DDTHH:mm" in IST (empty = now) */
+export const momentField = Yup.string().default("").matches(/^$|^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Pick a valid date and time");
+
 const day = (label: string) => Yup.string().required(`${label} is required`).matches(/^\d{4}-\d{2}-\d{2}$/, `${label} is invalid`);
 
 export const bookingSchema = Yup.object({
@@ -16,6 +23,8 @@ export const bookingSchema = Yup.object({
   checkOut: day("Check-out").test("after", "Check-out must be after check-in", function (v) {
     return !v || !this.parent.checkIn || v > this.parent.checkIn;
   }),
+  arrivalTime: optionalTime("Arrival time"),
+  departureTime: optionalTime("Departure time"),
   mealPlan: Yup.string().oneOf(MEAL_PLAN_CODES, "Choose a meal plan").required(),
   rooms: Yup.array().of(Yup.string().required()).min(1, "Select at least one room").required(),
   adults: Yup.number().typeError("Enter a number").integer().min(1, "At least 1 adult").required(),
@@ -51,4 +60,7 @@ export type CancelInput = Yup.InferType<typeof cancelSchema>;
 
 export const checkOutSchema = Yup.object({
   allowDue: Yup.boolean().default(false),
+  at: momentField,
 });
+
+export const checkInSchema = Yup.object({ at: momentField });

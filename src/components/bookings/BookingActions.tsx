@@ -11,7 +11,6 @@ import { canBooking } from "@/lib/bookingAccess";
 import type { Booking } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
 import { ApiError } from "@/services/apiClient";
-import { bookingApi } from "@/services/bookingApi";
 import type { Dialog } from "./BookingDialogs";
 
 // Pop-ups (payment, ID upload, check-out, cancel, edit) are downloaded only when first opened
@@ -56,7 +55,7 @@ export function BookingActions({ booking: b, today }: { booking: Booking; today:
           icon={<LogIn className="w-4 h-4" />}
           loading={busy && dialog === null}
           onClick={() =>
-            b.guest.idFiles.length ? run(() => bookingApi.checkIn(b._id), "Guest checked in") : (toast.info("Upload the Aadhaar / ID first"), setDialog("id"))
+            b.guest.idFiles.length ? setDialog("checkin") : (toast.info("Upload the Aadhaar / ID first"), setDialog("id"))
           }
         >
           Check In

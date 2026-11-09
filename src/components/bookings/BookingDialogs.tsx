@@ -1,7 +1,7 @@
 "use client";
 
 import { Form, Formik } from "formik";
-import { Ban, IdCard, LogOut, Pencil, Wallet } from "lucide-react";
+import { Ban, IdCard, LogIn, LogOut, Pencil, Wallet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import * as Yup from "yup";
@@ -11,13 +11,14 @@ import { FormField, inputClass } from "@/components/ui/FormField";
 import { Modal } from "@/components/ui/Modal";
 import { PAYMENT_MODES, toOptions } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
+import { parseIstLocal, stayMoment, timeLabel, toIstLocal } from "@/lib/stayTimes";
 import type { Booking } from "@/lib/hotelTypes";
 import type { SessionUser } from "@/lib/types";
-import { cancelSchema, paymentSchema } from "@/lib/validation/booking.schema";
+import { cancelSchema, optionalTime, paymentSchema } from "@/lib/validation/booking.schema";
 import { optionalText, requiredPhone, requiredText } from "@/lib/validation/common";
 import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi";
 
-export type Dialog = null | "pay" | "id" | "cancel" | "edit" | "checkout";
+export type Dialog = null | "pay" | "id" | "cancel" | "edit" | "checkout" | "checkin";
 
 const guestSchema = Yup.object({
   guestName: requiredText("Guest name", 100),
@@ -27,6 +28,8 @@ const guestSchema = Yup.object({
   children: Yup.number().integer().min(0).default(0),
   agentRef: optionalText("Agent reference", 60),
   notes: optionalText("Notes", 1000),
+  arrivalTime: optionalTime("Arrival time"),
+  departureTime: optionalTime("Departure time"),
 });
 
 interface Props {
@@ -90,9 +93,28 @@ export default function BookingDialogs({ b, user, dialog, setDialog, busy, arriv
         </div>
       </Modal>
 
+      {/* Check in */}
+      <Modal open={dialog === "checkin"} onClose={() => setDialog(null)} title="Check In Guest" subtitle={`${b.guest.name} · Room ${b.rooms.map((r) => r.roomNumber).join(", ")}`} icon={<LogIn className="w-4 h-4" />} size="sm">
+        <Formik initialValues={{ at: toIstLocal() }} onSubmit={(v) => run(() => bookingApi.checkIn(b._id, v.at), "Guest checked in")}>
+          {({ values }) => (
+            <Form className="space-y-3 text-xs text-slate-600">
+              <p>
+                Expected arrival <b>{timeLabel(b.arrivalTime || b.hotel?.checkInTime || "12:00")}</b> · hotel check-in time{" "}
+                <b>{timeLabel(b.hotel?.checkInTime || "12:00")}</b>
+              </p>
+              <TextField name="at" label="Actual Check-in Time" type="datetime-local" max={toIstLocal()} required hint="Change it if the guest arrived earlier" />
+              {earlyNote(b.checkIn, b.hotel?.checkInTime, values.at)}
+              <Button type="submit" className="w-full" loading={busy}>
+                Confirm Check In
+              </Button>
+            </Form>
+          )}
+        </Formik>
+      </Modal>
+
       {/* Check out */}
       <Modal open={dialog === "checkout"} onClose={() => setDialog(null)} title="Check Out Guest" subtitle={`${b.guest.name} · Room ${b.rooms.map((r) => r.roomNumber).join(", ")}`} icon={<LogOut className="w-4 h-4" />} size="sm">
-        <Formik initialValues={{ allowDue: false }} onSubmit={(v) => run(() => bookingApi.checkOut(b._id, v.allowDue), "Guest checked out")}>
+        <Formik initialValues={{ allowDue: false, at: toIstLocal() }} onSubmit={(v) => run(() => bookingApi.checkOut(b._id, v.allowDue, v.at), "Guest checked out")}>
           {({ values, setFieldValue }) => (
             <Form className="space-y-3 text-xs text-slate-600">
               <p>
@@ -106,6 +128,8 @@ export default function BookingDialogs({ b, user, dialog, setDialog, busy, arriv
                   Allow check-out with balance due (Super Admin)
                 </label>
               )}
+              <TextField name="at" label="Actual Check-out Time" type="datetime-local" max={toIstLocal()} required hint={`Standard ${timeLabel(b.hotel?.checkOutTime || "11:00")}`} />
+              {lateNote(b.checkOut, b.hotel?.checkOutTime, values.at)}
               <p>Rooms will be marked for cleaning.</p>
               <Button type="submit" variant="dark" className="w-full" loading={busy}>
                 Confirm Check Out
@@ -138,7 +162,17 @@ export default function BookingDialogs({ b, user, dialog, setDialog, busy, arriv
       {/* Edit guest */}
       <Modal open={dialog === "edit"} onClose={() => setDialog(null)} title="Edit Guest Details" subtitle="To change dates or rooms, cancel and re-book" icon={<Pencil className="w-4 h-4" />}>
         <Formik
-          initialValues={{ guestName: b.guest.name, phone: b.guest.phone, address: b.guest.address, adults: b.adults, children: b.children, agentRef: b.agentRef, notes: b.notes }}
+          initialValues={{
+            guestName: b.guest.name,
+            phone: b.guest.phone,
+            address: b.guest.address,
+            adults: b.adults,
+            children: b.children,
+            agentRef: b.agentRef,
+            notes: b.notes,
+            arrivalTime: b.arrivalTime || "",
+            departureTime: b.departureTime || "",
+          }}
           validationSchema={guestSchema}
           onSubmit={(v) => run(() => bookingApi.update(b._id, v), "Booking updated")}
         >
@@ -147,6 +181,8 @@ export default function BookingDialogs({ b, user, dialog, setDialog, busy, arriv
             <TextField name="phone" label="Phone" required />
             <TextField name="adults" label="Adults" type="number" min={1} required />
             <TextField name="children" label="Children" type="number" min={0} />
+            <TextField name="arrivalTime" label="Expected Arrival Time" type="time" />
+            <TextField name="departureTime" label="Expected Departure Time" type="time" />
             {b.source === "agent" && <TextField name="agentRef" label="Agent Ref" />}
             <TextAreaField name="address" label="Address" className="sm:col-span-2" rows={2} />
             <TextAreaField name="notes" label="Notes" className="sm:col-span-2" rows={3} />
@@ -158,4 +194,20 @@ export default function BookingDialogs({ b, user, dialog, setDialog, busy, arriv
       </Modal>
     </>
   );
+}
+
+/** Hint under the time field: early check-in compared with the hotel's standard time. */
+function earlyNote(day: string, standard: string | undefined, at: string) {
+  if (!at) return null;
+  return parseIstLocal(at) < stayMoment(day, standard || "12:00") ? (
+    <p className="text-amber-700 font-semibold">Early check-in (before {timeLabel(standard || "12:00")} on arrival day)</p>
+  ) : null;
+}
+
+/** Hint under the time field: late check-out compared with the hotel's standard time. */
+function lateNote(day: string, standard: string | undefined, at: string) {
+  if (!at) return null;
+  return parseIstLocal(at) > stayMoment(day, standard || "11:00") ? (
+    <p className="text-amber-700 font-semibold">Late check-out (after {timeLabel(standard || "11:00")} on departure day)</p>
+  ) : null;
 }

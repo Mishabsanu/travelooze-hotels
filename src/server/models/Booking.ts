@@ -32,6 +32,9 @@ export interface BookingDoc {
   children: number;
   checkIn: Date;
   checkOut: Date;
+  /** Expected arrival / departure time of the guest, "HH:mm" (IST); defaults to the hotel standard times */
+  arrivalTime: string;
+  departureTime: string;
   nights: number;
   mealPlan: MealPlan;
   rooms: BookingRoomDoc[];
@@ -96,6 +99,8 @@ const BookingSchema = new Schema<BookingDoc>(
     // Stay dates at UTC midnight
     checkIn: { type: Date, required: true, index: true },
     checkOut: { type: Date, required: true, index: true },
+    arrivalTime: { type: String, default: "" },
+    departureTime: { type: String, default: "" },
     nights: { type: Number, required: true, min: 1 },
     mealPlan: { type: String, enum: MEAL_PLAN_CODES, required: true },
     rooms: { type: [BookingRoomSchema], validate: (v: unknown[]) => v.length > 0 },

@@ -14,6 +14,7 @@ import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { useApiSubmit } from "@/hooks/useApiSubmit";
 import { HOTEL_CATEGORIES, toOptions } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
+import { timeLabel } from "@/lib/stayTimes";
 import type { Hotel } from "@/lib/hotelTypes";
 import type { Paginated } from "@/lib/types";
 import { emptyHotel, hotelSchema, type HotelInput } from "@/lib/validation/hotel.schema";
@@ -48,6 +49,11 @@ export function HotelListView({ data }: { data: Paginated<Hotel> }) {
           ),
       },
       { key: "phone", label: "Phone" },
+      {
+        key: "checkInTime",
+        label: "Check-in / out",
+        render: (r) => `${timeLabel(r.checkInTime || "12:00")} / ${timeLabel(r.checkOutTime || "11:00")}`,
+      },
       { key: "gstin", label: "GSTIN", mono: true, hiddenByDefault: true },
       { key: "address", label: "Address", hiddenByDefault: true },
       { key: "status", label: "Status", align: "center", render: (r) => <StatusBadge status={r.status} /> },
@@ -86,6 +92,8 @@ export function HotelForm({ initial }: { initial?: Hotel }) {
         phone: initial.phone,
         email: initial.email,
         gstin: initial.gstin,
+        checkInTime: initial.checkInTime || "12:00",
+        checkOutTime: initial.checkOutTime || "11:00",
         status: initial.status,
       }
     : emptyHotel;
@@ -117,6 +125,12 @@ export function HotelForm({ initial }: { initial?: Hotel }) {
               <TextField name="email" label="Email" type="email" placeholder="frontdesk@hotel.com" />
               <TextField name="gstin" label="GSTIN" placeholder="32ABCDE1234F1Z5" maxLength={15} />
               <SelectField name="status" label="Status" required options={STATUS_OPTIONS} />
+            </FormSection>
+            <FormSection title="Standard Times" description="Used for expected arrival / departure and to flag early check-ins and late check-outs (India time).">
+              <TextField name="checkInTime" label="Check-in Time" type="time" required />
+              <TextField name="checkOutTime" label="Check-out Time" type="time" required />
+            </FormSection>
+            <FormSection title="Address">
               <TextAreaField name="address" label="Address" className="md:col-span-2" maxLength={300} />
             </FormSection>
           </FormCard>

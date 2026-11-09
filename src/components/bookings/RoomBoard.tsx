@@ -10,6 +10,7 @@ import { useListParams } from "@/hooks/useListParams";
 import { canBooking } from "@/lib/bookingAccess";
 import { ROOM_STATUS, type RoomStatus } from "@/lib/constants";
 import { formatDay, formatINR } from "@/lib/format";
+import { timeLabel } from "@/lib/stayTimes";
 import type { Option } from "@/lib/types";
 import type { BoardRoom, RoomState } from "@/server/services/booking/grid";
 import { apiRequest, ApiError } from "@/services/apiClient";
@@ -106,6 +107,11 @@ export function RoomBoard({ rooms, hotel, hotelOptions, today }: { rooms: BoardR
                 <Link href={`${BOOKING_BASE}/${r.booking._id}`} className="text-[11px] leading-tight hover:underline">
                   <span className="block font-semibold text-slate-800 truncate">{r.booking.guest}</span>
                   <span className="block text-slate-400">
+                    {r.state === "arriving" || r.state === "reserved"
+                      ? `ETA ${timeLabel(r.booking.arrivalTime) || "—"} · `
+                      : r.state === "due_out"
+                        ? `out by ${timeLabel(r.booking.departureTime) || "—"} · `
+                        : ""}
                     out {formatDay(r.booking.checkOut)}
                     {r.booking.balance > 0 && <span className="text-rose-600"> · due {formatINR(r.booking.balance)}</span>}
                   </span>

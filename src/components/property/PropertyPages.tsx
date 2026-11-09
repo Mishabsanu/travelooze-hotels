@@ -6,6 +6,7 @@ import { DetailCard, DetailItem, DetailSection } from "@/components/ui/DetailCar
 import { PageHeader } from "@/components/ui/PageHeader";
 import { HOTEL_CATEGORIES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/format";
+import { timeLabel } from "@/lib/stayTimes";
 import { can, type PermissionModule } from "@/lib/permissions";
 import { getPageAccess } from "@/server/auth/session";
 import { parseListQuery } from "@/server/http/query";
@@ -95,6 +96,8 @@ export async function HotelDetailPage({ params }: { params: IdParams }) {
         <DetailItem label="Phone" value={hotel.phone} />
         <DetailItem label="Email" value={hotel.email} />
         <DetailItem label="GSTIN" value={hotel.gstin} mono />
+        <DetailItem label="Check-in Time" value={timeLabel(hotel.checkInTime || "12:00")} />
+        <DetailItem label="Check-out Time" value={timeLabel(hotel.checkOutTime || "11:00")} />
         <DetailItem label="Address" value={hotel.address} />
       </DetailSection>
       <DetailSection title="Rooms">
