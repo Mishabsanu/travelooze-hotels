@@ -1,5 +1,5 @@
 import * as Yup from "yup";
-import { MEAL_PLAN_CODES, PAYMENT_MODES } from "../constants";
+import { CHARGE_CATEGORIES, MEAL_PLAN_CODES, PAYMENT_MODES } from "../constants";
 import { objectId, optionalText, requiredPhone, requiredText } from "./common";
 
 /** "HH:mm" or empty (empty = hotel standard time) */
@@ -8,6 +8,57 @@ export const optionalTime = (label: string) =>
 
 /** Actual check-in / check-out moment from the pop-up, "YYYY-MM-DDTHH:mm" in IST (empty = now) */
 export const momentField = Yup.string().default("").matches(/^$|^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "Pick a valid date and time");
+
+export const guestEntrySchema = Yup.object({
+  _id: Yup.string().default(""),
+  name: optionalText("Guest name", 100),
+  type: Yup.string().oneOf(["adult", "child"]).default("adult"),
+  phone: optionalText("Phone", 20),
+});
+
+/** One booked room: who and how many stay in it */
+export const roomLineSchema = Yup.object({
+  room: Yup.string().required().matches(/^[a-f0-9]{24}$/i, "Invalid room"),
+  adults: Yup.number().typeError("Enter a number").integer().min(1, "At least 1 adult per room").required(),
+  children: Yup.number().typeError("Enter a number").integer().min(0).default(0),
+  extraBeds: Yup.number().typeError("Enter a number").integer().min(0).default(0),
+  guests: Yup.array().of(guestEntrySchema).default([]),
+});
+
+/** Rooming list edit on an existing booking */
+export const roomingSchema = Yup.object({
+  lines: Yup.array().of(roomLineSchema).min(1).required(),
+});
+export type RoomingInput = Yup.InferType<typeof roomingSchema>;
+
+/** Folio: one extra charge */
+export const chargeSchema = Yup.object({
+  category: Yup.string().oneOf(Object.keys(CHARGE_CATEGORIES), "Choose a category").required(),
+  description: optionalText("Description", 120),
+  qty: Yup.number().typeError("Enter a number").moreThan(0, "Enter a quantity").required("Quantity is required"),
+  rate: Yup.number().typeError("Enter a number").min(0, "Cannot be negative").required("Rate is required"),
+  gstPercent: Yup.number().typeError("Enter a number").min(0).max(28).required(),
+  date: Yup.string().default("").matches(/^$|^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
+});
+export type ChargeInput = Yup.InferType<typeof chargeSchema>;
+
+/** Change stay dates (extend / shorten / move the whole stay) */
+export const datesSchema = Yup.object({
+  checkIn: Yup.string().required().matches(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
+  checkOut: Yup.string()
+    .required()
+    .matches(/^\d{4}-\d{2}-\d{2}$/, "Pick a date")
+    .test("after", "Check-out must be after check-in", function (v) {
+      return !v || v > this.parent.checkIn;
+    }),
+});
+
+/** Move one booked room to another room */
+export const moveSchema = Yup.object({
+  fromRoom: Yup.string().required().matches(/^[a-f0-9]{24}$/i),
+  toRoom: Yup.string().required("Choose the new room").matches(/^[a-f0-9]{24}$/i, "Choose the new room"),
+  rate: Yup.string().oneOf(["keep", "new"]).default("keep"),
+});
 
 const day = (label: string) => Yup.string().required(`${label} is required`).matches(/^\d{4}-\d{2}-\d{2}$/, `${label} is invalid`);
 
@@ -27,7 +78,9 @@ export const bookingSchema = Yup.object({
   departureTime: optionalTime("Departure time"),
   mealPlan: Yup.string().oneOf(MEAL_PLAN_CODES, "Choose a meal plan").required(),
   rooms: Yup.array().of(Yup.string().required()).min(1, "Select at least one room").required(),
-  adults: Yup.number().typeError("Enter a number").integer().min(1, "At least 1 adult").required(),
+  /** Occupancy per selected room (optional: without it the old adults/children fields are spread over the rooms) */
+  lines: Yup.array().of(roomLineSchema).default([]),
+  adults: Yup.number().typeError("Enter a number").integer().min(1, "At least 1 adult").default(1),
   children: Yup.number().typeError("Enter a number").integer().min(0).default(0),
   guestName: requiredText("Guest name", 100),
   phone: requiredPhone("Phone"),

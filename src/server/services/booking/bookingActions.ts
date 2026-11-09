@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions";
 import { round2 } from "@/lib/pricing";
 import type { SessionUser } from "@/lib/types";
 import type { CancelInput, PaymentInput } from "@/lib/validation/booking.schema";
+import { computeIdStatus } from "@/lib/rooming";
 import { parseIstLocal } from "@/lib/stayTimes";
 import { AppError } from "../../http/errors";
 import { Booking as BookingModel } from "../../models/Booking";
@@ -40,10 +41,13 @@ function actualMoment(at: string | undefined, label: string): Date {
 
 export async function checkInBooking(id: string, user: SessionUser, at?: string): Promise<Booking> {
   if (!can(user, "check_in_out", "update")) throw forbid("check guests in");
-  const { doc } = await load(id, user);
+  const { doc, view } = await load(id, user);
   if (doc.status !== "confirmed") throw new AppError("Only confirmed bookings can be checked in", 409);
   if (doc.checkIn > todayIST()) throw new AppError("This guest is arriving on a later date", 409);
-  if (!doc.guest.idFiles.length) throw new AppError("Upload the guest's Aadhaar / ID before check-in", 409);
+  const ids = computeIdStatus(view);
+  if (!ids.ready) {
+    throw new AppError(`Every adult needs a name and an ID before check-in (${ids.adultsWithId} of ${ids.adultsExpected} done). ${ids.missing.slice(0, 3).join("; ")}`, 409);
+  }
   const when = actualMoment(at, "Check-in");
   // Early check-in is allowed, but not before the day before arrival
   if (when < new Date(doc.checkIn.getTime() - 86_400_000 + -5.5 * 3600_000)) {
@@ -59,8 +63,8 @@ export async function checkOutBooking(id: string, allowDue: boolean, user: Sessi
   if (!can(user, "check_in_out", "update")) throw forbid("check guests out");
   const { doc, view } = await load(id, user);
   if (doc.status !== "checked_in") throw new AppError("Guest is not checked in", 409);
-  if (view.balance > 0 && doc.billTo === "guest" && !(allowDue && user.isSuperAdmin)) {
-    throw new AppError(`Collect the balance of ₹${view.balance} before check-out`, 409);
+  if (view.guestDue > 0 && !(allowDue && user.isSuperAdmin)) {
+    throw new AppError(`Collect ₹${view.guestDue} from the guest before check-out`, 409);
   }
   const when = actualMoment(at, "Check-out");
   if (doc.checkedInAt && when < doc.checkedInAt) {

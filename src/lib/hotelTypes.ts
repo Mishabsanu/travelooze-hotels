@@ -1,4 +1,4 @@
-import type { BookingStatus, HotelCategory, MealPlan, PaymentMode, RoomStatus } from "./constants";
+import type { BookingStatus, ChargeCategory, HotelCategory, MealPlan, PaymentMode, RoomStatus } from "./constants";
 import type { CreatorName, RecordStatus } from "./types";
 
 export interface Hotel {
@@ -24,7 +24,10 @@ export interface RoomType {
   hotel: { _id: string; name: string; code: string } | null;
   name: string;
   maxAdults: number;
+  maxChildren: number;
+  maxExtraBeds: number;
   rates: Record<MealPlan, number>;
+  extraBedRates: Record<MealPlan, number>;
   status: RecordStatus;
   roomCount?: number;
   createdAt?: string;
@@ -63,12 +66,49 @@ export interface Agent {
   updatedAt?: string;
 }
 
+export interface BookingGuest {
+  _id: string;
+  name: string;
+  type: "adult" | "child";
+  phone: string;
+  aadhaarLast4: string;
+  idFiles: string[];
+}
+
 export interface BookingRoom {
   room: string;
   roomNumber: string;
   roomType: string;
   roomTypeName: string;
   ratePerNight: number;
+  adults: number;
+  children: number;
+  extraBeds: number;
+  extraBedRate: number;
+  guests: BookingGuest[];
+}
+
+export interface BookingCharge {
+  _id: string;
+  date: string;
+  category: ChargeCategory;
+  description: string;
+  qty: number;
+  rate: number;
+  amount: number;
+  gstPercent: number;
+  gstAmount: number;
+  total: number;
+  by?: CreatorName | null;
+  at: string;
+}
+
+/** Who still needs to be named / to upload an ID before check-in */
+export interface IdStatus {
+  adultsExpected: number;
+  adultsWithId: number;
+  missing: string[];
+  ready: boolean;
 }
 
 export interface BookingPayment {
@@ -109,11 +149,24 @@ export interface Booking {
   mealPlan: MealPlan;
   rooms: BookingRoom[];
   roomCharges: number;
+  extraBedCharges: number;
   discount: number;
   gstAmount: number;
+  /** Accommodation total incl. GST */
   total: number;
+  charges: BookingCharge[];
+  /** Folio charges incl. their GST */
+  extrasTotal: number;
+  /** total + extrasTotal */
+  grandTotal: number;
   paid: number;
+  /** grandTotal - paid */
   balance: number;
+  /** What the guest must settle at the desk (all of it, or only extras when the agent is billed) */
+  guestDue: number;
+  invoiceNo?: string;
+  invoiceDate?: string;
+  idStatus: IdStatus;
   payments: BookingPayment[];
   status: BookingStatus;
   notes: string;
@@ -129,6 +182,9 @@ export interface AvailabilityType {
   _id: string;
   name: string;
   maxAdults: number;
+  maxChildren: number;
+  maxExtraBeds: number;
   rates: Record<MealPlan, number>;
+  extraBedRates: Record<MealPlan, number>;
   rooms: { _id: string; number: string; floor: string }[];
 }

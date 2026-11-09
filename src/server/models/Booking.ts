@@ -1,5 +1,24 @@
 import { model, models, Schema, type Model, type Types } from "mongoose";
-import { BOOKING_STATUS, MEAL_PLAN_CODES, PAYMENT_MODES, type BookingStatus, type MealPlan, type PaymentMode } from "@/lib/constants";
+import {
+  BOOKING_STATUS,
+  CHARGE_CATEGORIES,
+  MEAL_PLAN_CODES,
+  PAYMENT_MODES,
+  type BookingStatus,
+  type ChargeCategory,
+  type MealPlan,
+  type PaymentMode,
+} from "@/lib/constants";
+
+export interface GuestDoc {
+  _id: Types.ObjectId;
+  name: string;
+  type: "adult" | "child";
+  phone: string;
+  aadhaarLast4: string;
+  /** Private Cloudinary references (see server/storage.ts) */
+  idFiles: string[];
+}
 
 export interface BookingRoomDoc {
   room: Types.ObjectId;
@@ -7,6 +26,27 @@ export interface BookingRoomDoc {
   roomType: Types.ObjectId;
   roomTypeName: string;
   ratePerNight: number;
+  adults: number;
+  children: number;
+  extraBeds: number;
+  extraBedRate: number;
+  /** Rooming list: who stays in this room (names can be filled in up to check-in) */
+  guests: GuestDoc[];
+}
+
+export interface ChargeDoc {
+  _id: Types.ObjectId;
+  date: Date;
+  category: ChargeCategory;
+  description: string;
+  qty: number;
+  rate: number;
+  amount: number;
+  gstPercent: number;
+  gstAmount: number;
+  total: number;
+  by?: Types.ObjectId;
+  at: Date;
 }
 
 export interface PaymentDoc {
@@ -39,9 +79,19 @@ export interface BookingDoc {
   mealPlan: MealPlan;
   rooms: BookingRoomDoc[];
   roomCharges: number;
+  extraBedCharges: number;
+  /** Discount % applied (agent contract or manual); kept so re-pricing uses the same % */
+  discountPercent?: number;
   discount: number;
   gstAmount: number;
+  /** Accommodation total incl. GST (what an agent is billed) */
   total: number;
+  /** Folio: restaurant, laundry, … (always the guest's to pay) */
+  charges: ChargeDoc[];
+  extrasTotal: number;
+  /** GST invoice number, e.g. GRD/2026-27/0001 (given once, on first invoice) */
+  invoiceNo?: string;
+  invoiceDate?: Date;
   payments: PaymentDoc[];
   status: BookingStatus;
   notes: string;
@@ -52,6 +102,14 @@ export interface BookingDoc {
   updatedAt: Date;
 }
 
+const GuestEntrySchema = new Schema<GuestDoc>({
+  name: { type: String, default: "", trim: true },
+  type: { type: String, enum: ["adult", "child"], default: "adult" },
+  phone: { type: String, default: "", trim: true },
+  aadhaarLast4: { type: String, default: "" },
+  idFiles: { type: [String], default: [] },
+});
+
 const BookingRoomSchema = new Schema<BookingRoomDoc>(
   {
     room: { type: Schema.Types.ObjectId, ref: "Room", required: true },
@@ -59,9 +117,28 @@ const BookingRoomSchema = new Schema<BookingRoomDoc>(
     roomType: { type: Schema.Types.ObjectId, ref: "RoomType", required: true },
     roomTypeName: { type: String, required: true },
     ratePerNight: { type: Number, required: true, min: 0 },
+    adults: { type: Number, default: 1, min: 0 },
+    children: { type: Number, default: 0, min: 0 },
+    extraBeds: { type: Number, default: 0, min: 0 },
+    extraBedRate: { type: Number, default: 0, min: 0 },
+    guests: { type: [GuestEntrySchema], default: [] },
   },
   { _id: false }
 );
+
+const ChargeSchema = new Schema<ChargeDoc>({
+  date: { type: Date, required: true },
+  category: { type: String, enum: Object.keys(CHARGE_CATEGORIES), required: true },
+  description: { type: String, default: "", trim: true },
+  qty: { type: Number, required: true, min: 0.01 },
+  rate: { type: Number, required: true, min: 0 },
+  amount: { type: Number, required: true },
+  gstPercent: { type: Number, default: 0, min: 0, max: 28 },
+  gstAmount: { type: Number, default: 0 },
+  total: { type: Number, required: true },
+  by: { type: Schema.Types.ObjectId, ref: "User" },
+  at: { type: Date, default: Date.now },
+});
 
 const PaymentSchema = new Schema<PaymentDoc>({
   amount: { type: Number, required: true, min: 0.01 },
@@ -105,9 +182,15 @@ const BookingSchema = new Schema<BookingDoc>(
     mealPlan: { type: String, enum: MEAL_PLAN_CODES, required: true },
     rooms: { type: [BookingRoomSchema], validate: (v: unknown[]) => v.length > 0 },
     roomCharges: { type: Number, required: true },
+    extraBedCharges: { type: Number, default: 0 },
+    discountPercent: { type: Number, min: 0, max: 100 },
     discount: { type: Number, default: 0 },
     gstAmount: { type: Number, required: true },
     total: { type: Number, required: true },
+    charges: { type: [ChargeSchema], default: [] },
+    extrasTotal: { type: Number, default: 0 },
+    invoiceNo: { type: String },
+    invoiceDate: { type: Date },
     payments: { type: [PaymentSchema], default: [] },
     status: { type: String, enum: Object.keys(BOOKING_STATUS), default: "confirmed", index: true },
     notes: { type: String, default: "" },

@@ -4,7 +4,8 @@ import { agentBookingsOnly, canBooking } from "@/lib/bookingAccess";
 import { BOOKING_STATUS, type MealPlan, type PaymentMode } from "@/lib/constants";
 import type { Booking } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
-import { priceStay, round2 } from "@/lib/pricing";
+import { priceRooms, round2 } from "@/lib/pricing";
+import { computeIdStatus } from "@/lib/rooming";
 import type { Paginated, SessionUser } from "@/lib/types";
 import type { BookingInput } from "@/lib/validation/booking.schema";
 import { DEFAULT_CHECK_IN, DEFAULT_CHECK_OUT } from "@/lib/stayTimes";
@@ -22,12 +23,14 @@ import { agentBalances } from "../agent.service";
 import { assertHotelAccess } from "../hotel.service";
 import { addDays, nightsBetween, parseDay, todayIST } from "../stay";
 import { holdRoomNights, releaseRoomNights } from "./availability";
+import { buildLines } from "./rooming";
 
 const POPULATE = [
   { path: "hotel", select: "name code address phone gstin checkInTime checkOutTime" },
   { path: "agent", select: "name gstin" },
   { path: "createdBy", select: "name -_id" },
   { path: "payments.by", select: "name -_id" },
+  { path: "charges.by", select: "name -_id" },
 ];
 
 type LeanBooking = Omit<BookingDoc, "hotel" | "agent"> & { hotel: unknown; agent?: unknown };
@@ -35,8 +38,24 @@ type LeanBooking = Omit<BookingDoc, "hotel" | "agent"> & { hotel: unknown; agent
 /** Adds paid / balance and serialises for the client. */
 export function toBooking(doc: LeanBooking): Booking {
   const b = toPlain<Booking>(doc);
+  b.idStatus = computeIdStatus(b); // before defaults: tells older bookings apart
+  b.rooms = (b.rooms ?? []).map((r, i) => ({
+    ...r,
+    adults: r.adults ?? (i === 0 ? b.adults : 1),
+    children: r.children ?? (i === 0 ? b.children : 0),
+    extraBeds: r.extraBeds ?? 0,
+    extraBedRate: r.extraBedRate ?? 0,
+    guests: r.guests ?? [],
+  }));
+  b.extraBedCharges = b.extraBedCharges ?? 0;
+  b.charges = b.charges ?? [];
+  b.extrasTotal = round2(b.extrasTotal ?? 0);
+  b.grandTotal = round2(b.total + b.extrasTotal);
   b.paid = round2((b.payments ?? []).reduce((s, p) => s + p.amount, 0));
-  b.balance = round2(b.total - b.paid);
+  b.balance = round2(b.grandTotal - b.paid);
+  // Agent bookings: the agent is billed the room, the guest settles the extras at the desk
+  const paidByGuest = round2((b.payments ?? []).filter((p) => p.paidBy === "guest").reduce((s, p) => s + p.amount, 0));
+  b.guestDue = b.billTo === "agent" ? Math.max(0, round2(b.extrasTotal - paidByGuest)) : Math.max(0, b.balance);
   b.agent = b.agent ?? null;
   return b;
 }
@@ -111,9 +130,14 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
   if (rooms.length !== roomIds.length) throw new AppError("Some selected rooms are not valid", 422, { rooms: "Pick again" });
   const types = new Map((await RoomType.find({ _id: { $in: rooms.map((r) => r.roomType) } }).lean()).map((t) => [String(t._id), t]));
   const mealPlan = input.mealPlan as MealPlan;
-  const lines = rooms.map((r) => {
-    const t = types.get(String(r.roomType))!;
-    return { room: r._id, roomNumber: r.number, roomType: t._id, roomTypeName: t.name, ratePerNight: t.rates?.[mealPlan] ?? 0 };
+  // Keep the order the rooms were picked in
+  const ordered = roomIds.map((id) => rooms.find((r) => String(r._id) === id)!);
+  const lines = buildLines(ordered, types, mealPlan, {
+    lines: input.lines,
+    adults: input.adults,
+    children: input.children,
+    guestName: input.guestName,
+    phone: input.phone,
   });
   if (lines.some((l) => l.ratePerNight <= 0)) throw new AppError(`No ${mealPlan} rate set for one of the room types`, 422, { mealPlan: "Rate missing" });
 
@@ -127,7 +151,11 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
   } else if (can(user, "room_type", "update")) {
     discountPercent = input.discountPercent ?? 0;
   }
-  const price = priceStay(lines.map((l) => l.ratePerNight), nights, discountPercent);
+  const price = priceRooms(
+    lines.map((l) => ({ rate: l.ratePerNight, extraBeds: l.extraBeds, extraBedRate: l.extraBedRate })),
+    nights,
+    discountPercent
+  );
 
   const advance = round2(input.advance ?? 0);
   if (advance > price.total) throw new AppError("Advance is more than the booking total", 422, { advance: "More than total" });
@@ -161,8 +189,8 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
       agentRef: source === "agent" ? input.agentRef : "",
       billTo,
       guest: { name: input.guestName, phone: input.phone, address: input.address, aadhaarLast4: aadhaar ? aadhaar.slice(-4) : "", idFiles: [] },
-      adults: input.adults,
-      children: input.children,
+      adults: lines.reduce((n, l) => n + l.adults, 0),
+      children: lines.reduce((n, l) => n + l.children, 0),
       checkIn,
       checkOut,
       // Blank = the hotel's standard times
@@ -172,6 +200,7 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
       mealPlan,
       rooms: lines,
       ...price,
+      discountPercent,
       payments: advance > 0 ? [{ amount: advance, mode: input.advanceMode as PaymentMode, reference: input.advanceRef, paidBy: billTo, by: user._id }] : [],
       notes: input.notes,
       createdBy: user._id,

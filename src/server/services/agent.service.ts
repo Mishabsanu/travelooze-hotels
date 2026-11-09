@@ -28,7 +28,21 @@ export async function agentBalances(agentIds?: Types.ObjectId[], scope: Filter =
   if (agentIds) match.agent = { $in: agentIds };
   const rows = await Booking.aggregate<{ _id: Types.ObjectId; billed: number; paid: number; count: number }>([
     { $match: match },
-    { $group: { _id: "$agent", billed: { $sum: "$total" }, paid: { $sum: { $sum: "$payments.amount" } }, count: { $sum: 1 } } },
+    {
+      $group: {
+        _id: "$agent",
+        billed: { $sum: "$total" },
+        // only what the AGENT paid (the guest pays the extras separately)
+        paid: {
+          $sum: {
+            $sum: {
+              $map: { input: { $filter: { input: "$payments", cond: { $ne: ["$this.paidBy", "guest"] } } }, in: "$this.amount" },
+            },
+          },
+        },
+        count: { $sum: 1 },
+      },
+    },
   ]);
   return new Map(rows.map((r) => [String(r._id), { billed: round2(r.billed), paid: round2(r.paid), count: r.count, due: round2(r.billed - r.paid) }]));
 }

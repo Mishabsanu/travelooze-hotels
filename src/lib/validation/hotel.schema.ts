@@ -36,11 +36,16 @@ export const emptyHotel: HotelInput = {
 
 const rate = (plan: string) => Yup.number().typeError(`${plan} rate must be a number`).min(0, "Cannot be negative").required(`${plan} rate is required`);
 
+const bedRate = () => Yup.number().typeError("Enter a number").min(0, "Cannot be negative").default(0);
+
 export const roomTypeSchema = Yup.object({
   hotel: objectId("Hotel"),
   name: requiredText("Room type", 60),
   maxAdults: Yup.number().typeError("Enter a number").integer().min(1, "At least 1").max(10).required("Max adults is required"),
+  maxChildren: Yup.number().typeError("Enter a number").integer().min(0).max(10).default(2),
+  maxExtraBeds: Yup.number().typeError("Enter a number").integer().min(0).max(5).default(1),
   rates: Yup.object(Object.fromEntries(MEAL_PLAN_CODES.map((c) => [c, rate(c)])) as Record<MealPlan, ReturnType<typeof rate>>),
+  extraBedRates: Yup.object(Object.fromEntries(MEAL_PLAN_CODES.map((c) => [c, bedRate()])) as Record<MealPlan, ReturnType<typeof bedRate>>),
   status: statusField,
 });
 export type RoomTypeInput = Yup.InferType<typeof roomTypeSchema>;
@@ -48,7 +53,10 @@ export const emptyRoomType: RoomTypeInput = {
   hotel: "",
   name: "",
   maxAdults: 2,
+  maxChildren: 2,
+  maxExtraBeds: 1,
   rates: { EP: 0, CP: 0, MAP: 0, AP: 0 },
+  extraBedRates: { EP: 0, CP: 0, MAP: 0, AP: 0 },
   status: "active",
 };
 

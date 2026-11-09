@@ -19,7 +19,7 @@ export const PERMISSION_GROUPS = [
     modules: [
       { key: "booking", label: "Walk-in Bookings (delete = cancel / no-show)" },
       { key: "check_in_out", label: "Check-in & Check-out (update)" },
-      { key: "payment", label: "Payments & Advances" },
+      { key: "payment", label: "Payments, Advances & Extra Charges (create = add charge, delete = remove charge)" },
       { key: "guest_id", label: "Guest Aadhaar / ID Proofs (view = open files, create = upload)" },
     ],
   },

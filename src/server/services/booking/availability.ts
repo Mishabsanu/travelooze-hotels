@@ -23,7 +23,10 @@ export async function getAvailability(hotelId: string, checkIn: Date, checkOut: 
     _id: String(t._id),
     name: t.name,
     maxAdults: t.maxAdults,
+    maxChildren: t.maxChildren ?? 2,
+    maxExtraBeds: t.maxExtraBeds ?? 1,
     rates: t.rates as Record<MealPlan, number>,
+    extraBedRates: (t.extraBedRates ?? { EP: 0, CP: 0, MAP: 0, AP: 0 }) as Record<MealPlan, number>,
     rooms: rooms
       .filter((r) => String(r.roomType) === String(t._id) && !takenSet.has(String(r._id)))
       .map((r) => ({ _id: String(r._id), number: r.number, floor: r.floor })),

@@ -29,7 +29,19 @@ export function RoomTypeListView({ data, hotelOptions }: { data: Paginated<RoomT
     () => [
       { key: "hotel", label: "Hotel", sortKey: false, render: (r) => r.hotel?.name ?? "—" },
       { key: "name", label: "Room Type", render: (r) => <span className="font-semibold text-slate-900">{r.name}</span> },
-      { key: "maxAdults", label: "Max Adults", align: "center" },
+      {
+        key: "maxAdults",
+        label: "Capacity",
+        align: "center",
+        render: (r) => `${r.maxAdults}A + ${r.maxChildren ?? 2}C + ${r.maxExtraBeds ?? 1} EB`,
+      },
+      {
+        key: "extraBedRates",
+        label: "Extra Bed (EP)",
+        align: "right",
+        sortKey: false,
+        render: (r) => <span className="tabular-nums">{formatINR(r.extraBedRates?.EP ?? 0)}</span>,
+      },
       ...MEAL_PLAN_CODES.map<Column<RoomType>>((c) => ({
         key: `rates.${c}`,
         label: `${c} Rate`,
@@ -67,7 +79,10 @@ export function RoomTypeForm({ initial, hotelOptions, defaultHotel }: { initial?
         hotel: initial.hotel?._id ?? "",
         name: initial.name,
         maxAdults: initial.maxAdults,
+        maxChildren: initial.maxChildren ?? 2,
+        maxExtraBeds: initial.maxExtraBeds ?? 1,
         rates: { ...emptyRoomType.rates, ...initial.rates },
+        extraBedRates: { ...emptyRoomType.extraBedRates, ...(initial.extraBedRates ?? {}) },
         status: initial.status,
       }
     : { ...emptyRoomType, hotel: defaultHotel ?? (hotelOptions.length === 1 ? hotelOptions[0].value : "") };
@@ -102,12 +117,22 @@ export function RoomTypeForm({ initial, hotelOptions, defaultHotel }: { initial?
                 hint={initial ? "Cannot be changed" : undefined}
               />
               <TextField name="name" label="Room Type" required placeholder="e.g. Deluxe" maxLength={60} />
-              <TextField name="maxAdults" label="Max Adults" type="number" min={1} max={10} required />
+              <TextField name="maxAdults" label="Max Adults" type="number" min={1} max={10} required hint="Without extra beds" />
+              <TextField name="maxChildren" label="Max Children" type="number" min={0} max={10} />
+              <TextField name="maxExtraBeds" label="Max Extra Beds" type="number" min={0} max={5} hint="Each adds 1 adult" />
               <SelectField name="status" label="Status" required options={STATUS_OPTIONS} />
             </FormSection>
             <FormSection title="Rates per room per night (before GST)" description="GST is added automatically on the booking by slab.">
               {MEAL_PLAN_CODES.map((c) => (
                 <TextField key={c} name={`rates.${c}`} label={MEAL_PLANS[c].label} type="number" min={0} step="1" required />
+              ))}
+            </FormSection>
+            <FormSection
+              title="Extra bed rate per bed per night (before GST)"
+              description="Charged for each extra bed on a booking. For MAP / AP include the meals of the extra person."
+            >
+              {MEAL_PLAN_CODES.map((c) => (
+                <TextField key={c} name={`extraBedRates.${c}`} label={`Extra Bed – ${c}`} type="number" min={0} step="1" />
               ))}
             </FormSection>
           </FormCard>

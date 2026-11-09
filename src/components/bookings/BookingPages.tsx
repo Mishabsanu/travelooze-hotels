@@ -21,6 +21,10 @@ import { BookingActions } from "./BookingActions";
 import { BookingForm } from "./BookingForm";
 import { BOOKING_BASE } from "./bookingConfig";
 import { BookingListView, BookingStatusBadge, SourceBadge } from "./BookingListView";
+import { FolioList } from "./FolioList";
+import { InvoiceSheet } from "./InvoiceSheet";
+import { InvoiceToolbar } from "./InvoiceToolbar";
+import { RoomingList } from "./RoomingList";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type IdParams = Promise<{ id: string }>;
@@ -164,67 +168,81 @@ export async function BookingDetailPage({ params }: { params: IdParams }) {
           {b.source === "agent" && <DetailItem label="Bill To" value={b.billTo === "agent" ? "Agent credit account" : "Guest"} />}
         </DetailSection>
 
-        <DetailSection title="Guest">
+        <DetailSection title="Contact (Lead Guest)">
           <DetailItem label="Name" value={b.guest.name} />
           <DetailItem label="Phone" value={b.guest.phone} />
-          <DetailItem label="Aadhaar" value={b.guest.aadhaarLast4 ? `XXXX XXXX ${b.guest.aadhaarLast4}` : undefined} mono />
           <DetailItem label="Address" value={b.guest.address} />
-          <DetailItem
-            label="ID Proof"
-            value={
-              b.guest.idFiles.length === 0 ? (
-                <span className="text-amber-700">Not uploaded{b.status === "confirmed" ? " — needed before check-in" : ""}</span>
-              ) : canSeeIds ? (
-                <span className="flex flex-wrap gap-2 no-print">
-                  {b.guest.idFiles.map((f, i) => (
-                    <a key={f} href={`/api/bookings/${b._id}/id-files/${i}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
-                      <Download className="w-3 h-3" /> File {i + 1}
-                    </a>
-                  ))}
-                </span>
-              ) : (
-                `${b.guest.idFiles.length} file(s) on record`
-              )
-            }
-          />
+          {b.guest.idFiles.length > 0 && (
+            <DetailItem
+              label="ID Proof (booking)"
+              value={
+                canSeeIds ? (
+                  <span className="flex flex-wrap gap-2 no-print">
+                    {b.guest.idFiles.map((f, i) => (
+                      <a key={f} href={`/api/bookings/${b._id}/id-files/${i}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
+                        <Download className="w-3 h-3" /> File {i + 1}
+                      </a>
+                    ))}
+                  </span>
+                ) : (
+                  `${b.guest.idFiles.length} file(s) on record`
+                )
+              }
+            />
+          )}
         </DetailSection>
+
+        <RoomingList booking={b} />
 
         <section className="space-y-3">
           <h2 className="text-xs font-bold text-brand uppercase tracking-wider pb-1.5 border-b border-slate-100">Bill</h2>
           <div className="border border-line overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
+            <table className="w-full text-xs border-collapse min-w-[640px]">
               <thead>
                 <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                  {["Room", "Type", "Rate / Night", "Nights", "GST", "Amount"].map((h, i) => (
-                    <th key={h} className={`px-3 py-2 border-r border-line last:border-r-0 ${i > 1 ? "text-right" : "text-left"}`}>
+                  {["Room", "Type", "Guests", "Rate / Night", "Extra Bed / Night", "Nights", "GST", "Amount"].map((h, i) => (
+                    <th key={h} className={`px-3 py-2 border-r border-line last:border-r-0 whitespace-nowrap ${i > 2 ? "text-right" : "text-left"}`}>
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {b.rooms.map((r) => (
-                  <tr key={r.room}>
-                    <td className="px-3 py-2 border-r border-line font-mono font-bold">{r.roomNumber}</td>
-                    <td className="px-3 py-2 border-r border-line">{r.roomTypeName}</td>
-                    <td className="px-3 py-2 border-r border-line text-right tabular-nums">{formatINR(r.ratePerNight)}</td>
-                    <td className="px-3 py-2 border-r border-line text-right">{b.nights}</td>
-                    <td className="px-3 py-2 border-r border-line text-right">{gstRateFor(r.ratePerNight * (1 - discountRatio))}%</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatINR(r.ratePerNight * b.nights)}</td>
-                  </tr>
-                ))}
+                {b.rooms.map((r) => {
+                  const perNight = r.ratePerNight + r.extraBeds * r.extraBedRate;
+                  return (
+                    <tr key={r.room}>
+                      <td className="px-3 py-2 border-r border-line font-mono font-bold">{r.roomNumber}</td>
+                      <td className="px-3 py-2 border-r border-line">{r.roomTypeName}</td>
+                      <td className="px-3 py-2 border-r border-line whitespace-nowrap">
+                        {r.adults}A{r.children ? ` + ${r.children}C` : ""}
+                      </td>
+                      <td className="px-3 py-2 border-r border-line text-right tabular-nums">{formatINR(r.ratePerNight)}</td>
+                      <td className="px-3 py-2 border-r border-line text-right tabular-nums">{r.extraBeds ? `${r.extraBeds} × ${formatINR(r.extraBedRate)}` : "—"}</td>
+                      <td className="px-3 py-2 border-r border-line text-right">{b.nights}</td>
+                      <td className="px-3 py-2 border-r border-line text-right">{gstRateFor(perNight * (1 - discountRatio))}%</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatINR(perNight * b.nights)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot className="border-t border-line">
                 <BillRow label="Room charges" value={formatINR(b.roomCharges)} />
+                {b.extraBedCharges > 0 && <BillRow label="Extra beds" value={formatINR(b.extraBedCharges)} />}
                 {b.discount > 0 && <BillRow label="Discount" value={`− ${formatINR(b.discount)}`} />}
                 <BillRow label="GST" value={formatINR(b.gstAmount)} />
-                <BillRow label="Total" value={formatINR(b.total)} strong />
+                <BillRow label="Accommodation total" value={formatINR(b.total)} strong />
+                {b.extrasTotal > 0 && <BillRow label="Extra charges (incl. GST)" value={formatINR(b.extrasTotal)} />}
+                {b.extrasTotal > 0 && <BillRow label="Grand total" value={formatINR(b.grandTotal)} strong />}
                 <BillRow label="Paid" value={formatINR(b.paid)} />
                 <BillRow label="Balance Due" value={formatINR(b.balance)} strong tone={b.balance > 0 ? "text-rose-600" : "text-emerald-700"} />
+                {b.billTo === "agent" && <BillRow label="To collect from guest (extras)" value={formatINR(b.guestDue)} tone={b.guestDue > 0 ? "text-rose-600" : "text-emerald-700"} />}
               </tfoot>
             </table>
           </div>
         </section>
+
+        <FolioList booking={b} />
 
         {b.payments.length > 0 && (
           <section className="space-y-3">
@@ -273,10 +291,22 @@ export async function BookingDetailPage({ params }: { params: IdParams }) {
 function BillRow({ label, value, strong, tone = "" }: { label: string; value: string; strong?: boolean; tone?: string }) {
   return (
     <tr className={strong ? "bg-head" : ""}>
-      <td colSpan={5} className={`px-3 py-1.5 text-right ${strong ? "font-bold text-slate-800" : "text-slate-500"}`}>
+      <td colSpan={7} className={`px-3 py-1.5 text-right ${strong ? "font-bold text-slate-800" : "text-slate-500"}`}>
         {label}
       </td>
       <td className={`px-3 py-1.5 text-right tabular-nums ${strong ? "font-black" : "font-semibold"} ${tone}`}>{value}</td>
     </tr>
+  );
+}
+
+export async function InvoicePage({ params }: { params: IdParams }) {
+  const user = await requireUser();
+  if (!canListBookings(user)) return <AccessDenied />;
+  const b = await orNotFound(getBooking((await params).id, user));
+  return (
+    <div className="space-y-4">
+      <InvoiceToolbar b={b} />
+      <InvoiceSheet b={b} />
+    </div>
   );
 }

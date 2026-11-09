@@ -13,6 +13,24 @@ export const bookingApi = {
   cancel: (id: string, body: { reason: string; noShow: boolean }) => apiRequest<Booking>(`/api/bookings/${id}/cancel`, "POST", body),
   pay: (id: string, body: unknown) => apiRequest<Booking>(`/api/bookings/${id}/payments`, "POST", body),
 
+  rooming: (id: string, body: unknown) => apiRequest<Booking>(`/api/bookings/${id}/rooming`, "PUT", body),
+
+  /** multipart upload of one rooming-list guest's Aadhaar / ID files */
+  async uploadGuestIds(id: string, guestId: string, files: File[], aadhaar = ""): Promise<Booking> {
+    const form = new FormData();
+    for (const f of files) form.append("files", f);
+    form.append("aadhaar", aadhaar);
+    let res: Response;
+    try {
+      res = await fetch(`/api/bookings/${id}/guests/${guestId}/id-files`, { method: "POST", body: form, credentials: "same-origin" });
+    } catch {
+      throw new ApiError("Network error. Check your connection and try again.", 0);
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(data.error || "Upload failed", res.status, data.fieldErrors);
+    return data as Booking;
+  },
+
   /** multipart upload of Aadhaar / ID files (JSON apiRequest cannot carry files) */
   async uploadIds(id: string, files: File[], aadhaar = ""): Promise<Booking> {
     const form = new FormData();

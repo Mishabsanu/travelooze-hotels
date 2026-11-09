@@ -11,11 +11,12 @@ import { useApiSubmit } from "@/hooks/useApiSubmit";
 import { MEAL_PLANS, MEAL_PLAN_CODES, PAYMENT_MODES, toOptions, type MealPlan } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
 import type { AvailabilityType, Booking } from "@/lib/hotelTypes";
-import { priceStay } from "@/lib/pricing";
+import { priceRooms } from "@/lib/pricing";
 import type { Option } from "@/lib/types";
 import { bookingSchema, type BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi";
+import { OccupancyEditor } from "./OccupancyEditor";
 import { RoomPicker } from "./RoomPicker";
 
 const PLAN_OPTIONS = MEAL_PLAN_CODES.map((c) => ({ value: c, label: MEAL_PLANS[c].label }));
@@ -58,6 +59,7 @@ export function BookingForm(p: BookingFormProps) {
     arrivalTime: "",
     departureTime: "",
     rooms: p.preset?.room ? [p.preset.room] : [],
+    lines: [],
     adults: 2,
     children: 0,
     guestName: "",
@@ -72,9 +74,9 @@ export function BookingForm(p: BookingFormProps) {
     notes: "",
   };
 
-  const rateOf = useMemo(() => {
-    const m = new Map<string, Record<MealPlan, number>>();
-    for (const t of types) for (const r of t.rooms) m.set(r._id, t.rates);
+  const typeOf = useMemo(() => {
+    const m = new Map<string, AvailabilityType>();
+    for (const t of types) for (const r of t.rooms) m.set(r._id, t);
     return m;
   }, [types]);
 
@@ -85,9 +87,12 @@ export function BookingForm(p: BookingFormProps) {
       let booking = await bookingApi.create(values);
       // ID upload and instant check-in are follow-up steps: the booking is already saved if they fail
       try {
-        if (files.length && p.canUploadId) booking = await bookingApi.uploadIds(booking._id, files, values.aadhaar);
-        if (checkInNow && p.canCheckIn && values.checkIn === p.today && booking.guest.idFiles.length) {
-          booking = await bookingApi.checkIn(booking._id);
+        // The ID picked on this form belongs to the lead guest (first adult of the first room)
+        const lead = booking.rooms[0]?.guests?.find((g) => g.type === "adult");
+        if (files.length && p.canUploadId && lead) booking = await bookingApi.uploadGuestIds(booking._id, lead._id, files, values.aadhaar);
+        if (checkInNow && p.canCheckIn && values.checkIn === p.today) {
+          if (booking.idStatus.ready) booking = await bookingApi.checkIn(booking._id);
+          else toast.info(`Saved. Check-in needs every adult's name and ID: ${booking.idStatus.adultsWithId} of ${booking.idStatus.adultsExpected} done.`);
         }
       } catch (e) {
         toast.warning(`Booking ${booking.bookingNo} saved, but: ${(e as Error).message}`);
@@ -104,7 +109,15 @@ export function BookingForm(p: BookingFormProps) {
         const agent = p.agentOptions.find((a) => a.value === values.agent);
         const discount = isAgent ? agent?.discountPercent ?? 0 : p.canDiscount ? Number(values.discountPercent) || 0 : 0;
         const plan = values.mealPlan as MealPlan;
-        const price = priceStay(values.rooms.map((id) => rateOf.get(id)?.[plan] ?? 0), nights, discount);
+        const price = priceRooms(
+          values.rooms.map((id) => {
+            const line = values.lines.find((l) => l.room === id);
+            const t = typeOf.get(id);
+            return { rate: t?.rates?.[plan] ?? 0, extraBeds: Number(line?.extraBeds) || 0, extraBedRate: t?.extraBedRates?.[plan] ?? 0 };
+          }),
+          nights,
+          discount
+        );
         const showCheckIn = !isAgent || values.checkIn === p.today;
 
         return (
@@ -136,8 +149,6 @@ export function BookingForm(p: BookingFormProps) {
                 <SelectField name="mealPlan" label="Meal Plan" required options={PLAN_OPTIONS} />
                 <TextField name="arrivalTime" label="Expected Arrival Time" type="time" hint="Blank = hotel standard" />
                 <TextField name="departureTime" label="Expected Departure Time" type="time" hint="Blank = hotel standard" />
-                <TextField name="adults" label="Adults" type="number" min={1} required />
-                <TextField name="children" label="Children" type="number" min={0} />
               </FormSection>
 
               {isAgent && (
@@ -176,7 +187,11 @@ export function BookingForm(p: BookingFormProps) {
                 />
               </FormSection>
 
-              <FormSection title="Guest">
+              <FormSection title="Occupancy & Guests" description="Adults, children and extra beds for each room. Capacity is checked per room type.">
+                <OccupancyEditor types={types} />
+              </FormSection>
+
+              <FormSection title="Lead Guest">
                 <TextField name="guestName" label="Guest Name" required maxLength={100} />
                 <TextField name="phone" label="Phone" required placeholder="98XXXXXXXX" />
                 <TextField name="aadhaar" label="Aadhaar Number" inputMode="numeric" maxLength={14} placeholder="XXXX XXXX XXXX" hint="Only last 4 digits are saved" />
@@ -210,6 +225,7 @@ export function BookingForm(p: BookingFormProps) {
                     <tbody className="divide-y divide-line">
                       <SummaryRow k={`Rooms × nights`} v={`${values.rooms.length} × ${nights || 0}`} />
                       <SummaryRow k="Room charges" v={formatINR(price.roomCharges)} />
+                      {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
                       {price.discount > 0 && <SummaryRow k={`Discount (${discount}%)`} v={`− ${formatINR(price.discount)}`} />}
                       <SummaryRow k="GST" v={formatINR(price.gstAmount)} />
                       <tr className="bg-brand-light">
