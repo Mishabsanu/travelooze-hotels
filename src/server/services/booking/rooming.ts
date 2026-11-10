@@ -51,7 +51,7 @@ export function buildLines(
       .filter((g) => g.name?.trim())
       .map((g) => ({ _id: new Types.ObjectId(), name: g.name.trim(), type: g.type === "child" ? "child" : "adult", phone: g.phone ?? "", aadhaarLast4: "", idFiles: [] as string[] }));
     // The booking's lead guest is the first adult of the first room unless names were given
-    if (i === 0 && !guests.some((g) => g.type === "adult")) {
+    if (i === 0 && input.guestName.trim() && !guests.some((g) => g.type === "adult")) {
       guests.unshift({ _id: new Types.ObjectId(), name: input.guestName, type: "adult", phone: input.phone, aadhaarLast4: "", idFiles: [] });
     }
     checkGuestCounts(r.number, occ, guests);

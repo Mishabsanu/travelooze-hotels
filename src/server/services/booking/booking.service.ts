@@ -143,7 +143,9 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
   }
   // Agent groups may come without a guest phone: use the agent's
   const phone = input.phone || agent?.phone || "";
-  if (!phone) throw new AppError("Phone is required", 422, { phone: "Phone is required" });
+  // Name can come later (needed at check-in); until then the list shows the agent / ref or "Walk-in guest"
+  const guestName = input.guestName.trim();
+  const displayName = guestName || (agent ? `${agent.name}${input.agentRef ? ` · ${input.agentRef}` : ""}` : "Walk-in guest");
 
   // Keep the order the rooms were picked in
   const ordered = roomIds.map((id) => rooms.find((r) => String(r._id) === id)!);
@@ -151,7 +153,7 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
     lines: input.lines,
     adults: input.adults,
     children: input.children,
-    guestName: input.guestName,
+    guestName,
     phone,
     checkIn: input.checkIn,
     checkOut: input.checkOut,
@@ -210,7 +212,7 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
       agent: agent?._id,
       agentRef: source === "agent" ? input.agentRef : "",
       billTo,
-      guest: { name: input.guestName, phone, address: input.address, aadhaarLast4: aadhaar ? aadhaar.slice(-4) : "", idFiles: [] },
+      guest: { name: displayName, phone, address: input.address, aadhaarLast4: aadhaar ? aadhaar.slice(-4) : "", idFiles: [] },
       adults: lines.reduce((n, l) => n + l.adults, 0),
       children: lines.reduce((n, l) => n + l.children, 0),
       checkIn,

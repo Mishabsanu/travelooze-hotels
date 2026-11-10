@@ -155,8 +155,8 @@ const PaymentSchema = new Schema<PaymentDoc>({
 
 const GuestSchema = new Schema(
   {
-    name: { type: String, required: true, trim: true },
-    phone: { type: String, required: true, trim: true },
+    name: { type: String, default: "", trim: true },
+    phone: { type: String, default: "", trim: true },
     address: { type: String, default: "", trim: true },
     // Only the last 4 digits of Aadhaar are kept
     aadhaarLast4: { type: String, default: "" },

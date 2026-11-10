@@ -2,6 +2,8 @@ import * as Yup from "yup";
 import { CHARGE_CATEGORIES, MEAL_PLAN_CODES, PAYMENT_MODES } from "../constants";
 import { objectId, optionalText, PHONE_PATTERN, requiredText } from "./common";
 
+// Guest name / phone / ID are optional when booking and checked at check-in
+
 /** "HH:mm" or empty (empty = hotel standard time) */
 export const optionalTime = (label: string) =>
   Yup.string().default("").matches(/^$|^([01]\d|2[0-3]):[0-5]\d$/, `${label} must be HH:MM`);
@@ -91,13 +93,12 @@ export const bookingSchema = Yup.object({
   lines: Yup.array().of(roomLineSchema).default([]),
   adults: Yup.number().typeError("Enter a number").integer().min(1, "At least 1 adult").default(1),
   children: Yup.number().typeError("Enter a number").integer().min(0).default(0),
-  guestName: requiredText("Guest name", 100),
+  guestName: optionalText("Guest name", 100),
   // Agent groups often come without a guest phone: the agent's phone is used then
   phone: Yup.string()
     .trim()
     .default("")
-    .test("phone", "Phone must be a valid phone number", (v) => !v || PHONE_PATTERN.test(v))
-    .when("source", { is: "walkin", then: (s) => s.required("Phone is required") }),
+    .test("phone", "Phone must be a valid phone number", (v) => !v || PHONE_PATTERN.test(v)),
   address: optionalText("Address", 300),
   aadhaar: Yup.string()
     .default("")

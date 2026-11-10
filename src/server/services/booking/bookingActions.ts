@@ -44,6 +44,7 @@ export async function checkInBooking(id: string, user: SessionUser, at?: string)
   const { doc, view } = await load(id, user);
   if (doc.status !== "confirmed") throw new AppError("Only confirmed bookings can be checked in", 409);
   if (doc.checkIn > todayIST()) throw new AppError("This guest is arriving on a later date", 409);
+  if (!doc.guest.phone?.trim()) throw new AppError("Add the guest's phone number first (Edit Guest)", 409);
   const ids = computeIdStatus(view);
   if (!ids.ready) {
     throw new AppError(`Every adult needs a name and an ID before check-in (${ids.adultsWithId} of ${ids.adultsExpected} done). ${ids.missing.slice(0, 3).join("; ")}`, 409);

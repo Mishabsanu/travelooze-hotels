@@ -1,12 +1,12 @@
 "use client";
 
 import { Form, Formik } from "formik";
-import { CalendarPlus, ChevronDown, ChevronUp, MessageSquareText } from "lucide-react";
+import { CalendarPlus, MessageSquareText } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { FormCard, FormSection } from "@/components/forms/FormCard";
-import { SearchSelectField, SelectField, TextAreaField, TextField } from "@/components/forms/FormikFields";
-import { FormField, inputClass } from "@/components/ui/FormField";
+import { SearchSelectField, SelectField, TextField } from "@/components/forms/FormikFields";
+import { FormField } from "@/components/ui/FormField";
 import { useApiSubmit } from "@/hooks/useApiSubmit";
 import { MEAL_PLANS, MEAL_PLAN_CODES, PAYMENT_MODES, toOptions, type MealPlan } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
@@ -15,7 +15,7 @@ import { perHeadRates, priceRooms, round2 } from "@/lib/pricing";
 import type { Option } from "@/lib/types";
 import { bookingSchema, type BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
-import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi";
+import { bookingApi, idFileProblem } from "@/services/bookingApi";
 import { AgentMessagePanel } from "./AgentMessagePanel";
 import { DiscountFields } from "./DiscountFields";
 import { OccupancyEditor } from "./OccupancyEditor";
@@ -42,7 +42,6 @@ export interface BookingFormProps {
   backHref: string;
 }
 
-const toggleBtn = "md:col-span-2 lg:col-span-3 inline-flex items-center gap-1 justify-self-start text-xs font-bold text-brand hover:underline";
 
 /**
  * One booking form for walk-ins and agents, kept short: stay + pax → rooms (picked and filled from the pax)
@@ -51,13 +50,15 @@ const toggleBtn = "md:col-span-2 lg:col-span-3 inline-flex items-center gap-1 ju
 export function BookingForm(p: BookingFormProps) {
   const [types, setTypes] = useState<AvailabilityType[]>([]);
   const [nights, setNights] = useState(0);
-  const [files, setFiles] = useState<File[]>([]);
+  // Aadhaar / ID files per room row (row 1 = main guest)
+  const [idFiles, setIdFilesState] = useState<Record<string, File[]>>({});
+  const setIdFiles = (room: string, files: File[]) => setIdFilesState((m) => ({ ...m, [room]: files }));
+  const anyFiles = Object.values(idFiles).some((x) => x.length);
   const [checkInNow, setCheckInNow] = useState(p.source === "walkin" && (p.preset?.checkIn ?? p.today) === p.today);
   const isAgent = p.source === "agent";
   const [perRoom, setPerRoom] = useState(2);
   const [pickRequest, setPickRequest] = useState(0);
   const [showPaste, setShowPaste] = useState(false);
-  const [moreGuest, setMoreGuest] = useState(false);
 
   const initialValues: BookingInput = {
     source: p.source,
@@ -97,14 +98,26 @@ export function BookingForm(p: BookingFormProps) {
 
   const onSubmit = useApiSubmit<BookingInput, Booking>({
     request: async (values) => {
-      const problem = idFileProblem(files);
-      if (problem) throw new ApiError(problem, 422);
+      const picked = values.rooms.map((id) => ({ room: id, files: idFiles[id] ?? [] })).filter((x) => x.files.length);
+      for (const x of picked) {
+        const problem = idFileProblem(x.files);
+        if (problem) throw new ApiError(problem, 422);
+      }
       let booking = await bookingApi.create(values);
       // ID upload and instant check-in are follow-up steps: the booking is already saved if they fail
       try {
-        // The ID picked on this form belongs to the lead guest (first adult of the first room)
-        const lead = booking.rooms[0]?.guests?.find((g) => g.type === "adult");
-        if (files.length && p.canUploadId && lead) booking = await bookingApi.uploadGuestIds(booking._id, lead._id, files, values.aadhaar);
+        // Each row's ID goes to that room's guest (row 1: the main guest, with the Aadhaar number if typed)
+        if (p.canUploadId) {
+          for (const x of picked) {
+            const idx = booking.rooms.findIndex((r) => r.room === x.room);
+            const guest = booking.rooms[idx]?.guests?.find((g) => g.type === "adult");
+            if (!guest) {
+              toast.warning(`Room ${booking.rooms[idx]?.roomNumber ?? ""}: ID not saved, add the guest name on the booking and upload there`);
+              continue;
+            }
+            booking = await bookingApi.uploadGuestIds(booking._id, guest._id, x.files, idx === 0 ? values.aadhaar : "");
+          }
+        }
         if (checkInNow && p.canCheckIn && values.checkIn === p.today) {
           if (booking.idStatus.ready) booking = await bookingApi.checkIn(booking._id);
           else toast.info(`Saved. Check-in needs every adult's name and ID: ${booking.idStatus.adultsWithId} of ${booking.idStatus.adultsExpected} done.`);
@@ -213,7 +226,7 @@ export function BookingForm(p: BookingFormProps) {
                 )}
               </FormSection>
 
-              <FormSection title="2 · Rooms" description="Pick rooms for the pax in one click, or tap rooms yourself. Guests are spread over the rooms automatically.">
+              <FormSection title="2 · Rooms & Guests" description="Pick rooms for the pax in one click, or tap rooms yourself. Then type the guest name and phone in the table.">
                 <RoomPicker
                   onTypes={(t, n) => {
                     setTypes(t);
@@ -224,39 +237,10 @@ export function BookingForm(p: BookingFormProps) {
                   pickRequest={pickRequest}
                   onPickDone={() => setPickRequest(0)}
                 />
-                <OccupancyEditor types={types} />
+                <OccupancyEditor types={types} phoneRequired={!isAgent} idFiles={idFiles} setIdFiles={p.canUploadId ? setIdFiles : undefined} />
               </FormSection>
 
-              <FormSection title="3 · Guest">
-                <TextField name="guestName" label={isAgent ? "Guest / Group Name" : "Guest Name"} required maxLength={100} />
-                <TextField name="phone" label="Phone" required={!isAgent} placeholder="98XXXXXXXX" hint={isAgent ? "Blank = agent's phone" : undefined} />
-                {p.canUploadId && (
-                  <FormField label="Aadhaar / ID Proof" hint={isAgent ? "Optional now" : "Front & back, max 4 MB each"}>
-                    <input
-                      type="file"
-                      multiple
-                      accept={ID_FILE_ACCEPT}
-                      onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-                      className={`${inputClass(false)} py-1.5 file:mr-2 file:rounded file:border-0 file:bg-brand-light file:px-2 file:py-0.5 file:text-[11px] file:font-bold file:text-brand`}
-                    />
-                  </FormField>
-                )}
-                <button type="button" className={toggleBtn} onClick={() => setMoreGuest((m) => !m)}>
-                  {moreGuest ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  {moreGuest ? "Less" : "More: Aadhaar no., address, arrival time, notes"}
-                </button>
-                {moreGuest && (
-                  <>
-                    <TextField name="aadhaar" label="Aadhaar Number" inputMode="numeric" maxLength={14} placeholder="XXXX XXXX XXXX" hint="Only last 4 digits are saved" />
-                    <TextField name="arrivalTime" label="Expected Arrival" type="time" hint="Blank = hotel standard" />
-                    <TextField name="departureTime" label="Expected Departure" type="time" hint="Blank = hotel standard" />
-                    <TextAreaField name="address" label="Address" className="md:col-span-2" rows={2} maxLength={300} />
-                    <TextAreaField name="notes" label="Notes" rows={2} maxLength={500} />
-                  </>
-                )}
-              </FormSection>
-
-              <FormSection title="4 · Price & Payment">
+              <FormSection title="3 · Price & Payment">
                 {isAgent && (
                   <FormField label="Rate" className="md:col-span-2 lg:col-span-3">
                     <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5" role="radiogroup" aria-label="Rate basis">
@@ -339,7 +323,7 @@ export function BookingForm(p: BookingFormProps) {
                 {p.canCheckIn && showCheckIn && values.checkIn === p.today && (
                   <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                     <input type="checkbox" checked={checkInNow} onChange={(e) => setCheckInNow(e.target.checked)} className="w-3.5 h-3.5 accent-brand" />
-                    Check the guest in now {files.length === 0 && <span className="font-normal text-slate-400">(needs ID upload)</span>}
+                    Check the guest in now {!anyFiles && <span className="font-normal text-slate-400">(needs ID upload)</span>}
                   </label>
                 )}
               </FormSection>
@@ -350,6 +334,7 @@ export function BookingForm(p: BookingFormProps) {
     </Formik>
   );
 }
+
 
 function SummaryRow({ k, v }: { k: string; v: string }) {
   return (
