@@ -1,49 +1,120 @@
 "use client";
 
-import { CheckCircle2, Download, IdCard, Plus, Trash2, UserRound, Users } from "lucide-react";
+import { CheckCircle2, Download, Loader2, Paperclip, Save, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSession } from "@/components/providers/SessionProvider";
 import { Button } from "@/components/ui/Button";
-import { FormField, inputClass } from "@/components/ui/FormField";
-import { Modal } from "@/components/ui/Modal";
 import { canBooking } from "@/lib/bookingAccess";
 import { formatINR, paxLabel } from "@/lib/format";
-import type { Booking, BookingGuest } from "@/lib/hotelTypes";
+import type { Booking } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi";
 
-type EditLine = { room: string; roomNumber: string; adults: number; children: number; extraBeds: number; guests: { _id: string; name: string; type: "adult" | "child"; phone: string }[] };
+type Slot = { _id: string; name: string; type: "adult" | "child"; phone: string; aadhaar: string; aadhaarLast4: string; idFiles: string[] };
+type Line = { room: string; roomNumber: string; roomTypeName: string; adults: number; children: number; extraBeds: number; extraBedRate: number; slots: Slot[] };
 
-const th = "px-3 py-2 border-r border-line last:border-r-0 whitespace-nowrap";
-const td = "px-3 py-2 border-r border-line last:border-r-0";
+const th = "px-2.5 py-2 border-r border-line last:border-r-0 whitespace-nowrap";
+const td = "px-2.5 py-1.5 border-r border-line last:border-r-0 align-middle";
+const input = "w-full h-8 px-2 text-xs bg-slate-50 border border-slate-300 rounded-md focus:border-brand focus:bg-white focus:outline-none disabled:bg-transparent disabled:border-transparent";
+const num = "w-12 h-7 px-1 text-xs text-center bg-white border border-slate-300 rounded-md focus:border-brand focus:outline-none";
 
-/** Rooming list of a booking: who is in which room, their ID status, ID upload and editing. */
+const empty = (type: Slot["type"]): Slot => ({ _id: "", name: "", type, phone: "", aadhaar: "", aadhaarLast4: "", idFiles: [] });
+
+/** One row per adult and child of every room (saved guests first, empty rows for the rest). */
+function toLines(b: Booking): Line[] {
+  return b.rooms.map((r) => {
+    const adults = r.guests.filter((g) => g.type === "adult");
+    const kids = r.guests.filter((g) => g.type === "child");
+    const slot = (g: (typeof r.guests)[number]): Slot => ({ _id: g._id, name: g.name, type: g.type, phone: g.phone, aadhaar: "", aadhaarLast4: g.aadhaarLast4 ?? "", idFiles: g.idFiles });
+    return {
+      room: r.room,
+      roomNumber: r.roomNumber,
+      roomTypeName: r.roomTypeName,
+      adults: r.adults,
+      children: r.children,
+      extraBeds: r.extraBeds,
+      extraBedRate: r.extraBedRate,
+      slots: [
+        ...adults.map(slot),
+        ...Array.from({ length: Math.max(0, r.adults - adults.length) }, () => empty("adult")),
+        ...kids.map(slot),
+        ...Array.from({ length: Math.max(0, r.children - kids.length) }, () => empty("child")),
+      ],
+    };
+  });
+}
+
+/** Resize a room's rows when its adults / children change (filled rows are kept). */
+function resize(l: Line, adults: number, children: number): Line {
+  const keep = (type: Slot["type"], n: number) => {
+    const list = l.slots.filter((s) => s.type === type);
+    const named = list.filter((s) => s.name.trim() || s._id);
+    const rest = list.filter((s) => !(s.name.trim() || s._id));
+    const out = [...named, ...rest].slice(0, Math.max(n, named.length));
+    while (out.length < n) out.push(empty(type));
+    return out;
+  };
+  return { ...l, adults, children, slots: [...keep("adult", adults), ...keep("child", children)] };
+}
+
+/**
+ * Rooming list, edited right in the table: name, phone, Aadhaar and ID per guest (all optional).
+ * Text changes are saved with "Save Guests"; an ID file uploads as soon as it is picked.
+ */
 export function RoomingList({ booking: b }: { booking: Booking }) {
   const user = useSession();
   const router = useRouter();
-  const [editing, setEditing] = useState<EditLine[] | null>(null);
-  const [upload, setUpload] = useState<BookingGuest | null>(null);
-  const [files, setFiles] = useState<File[]>([]);
-  const [aadhaar, setAadhaar] = useState("");
+  const [lines, setLines] = useState<Line[]>(() => toLines(b));
+  const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState("");
 
   const open = b.status === "confirmed" || b.status === "checked_in";
   const canEditCounts = open && canBooking(user, b.source, "update");
-  const canEditNames = open && (canEditCounts || can(user, "check_in_out", "update"));
+  const canEdit = open && (canEditCounts || can(user, "check_in_out", "update"));
   const canUpload = open && can(user, "guest_id", "create");
   const canView = can(user, "guest_id", "view");
   const s = b.idStatus;
 
-  const save = async () => {
-    if (!editing) return;
+  const change = (li: number, si: number, patch: Partial<Slot>) => {
+    setLines((ls) => ls.map((l, i) => (i === li ? { ...l, slots: l.slots.map((x, j) => (j === si ? { ...x, ...patch } : x)) } : l)));
+    setDirty(true);
+  };
+  const changeCounts = (li: number, patch: { adults?: number; children?: number; extraBeds?: number }) => {
+    setLines((ls) =>
+      ls.map((l, i) => {
+        if (i !== li) return l;
+        const next = resize(l, Math.max(1, patch.adults ?? l.adults), Math.max(0, patch.children ?? l.children));
+        return { ...next, extraBeds: Math.max(0, patch.extraBeds ?? l.extraBeds) };
+      })
+    );
+    setDirty(true);
+  };
+
+  /** Saves the whole list; returns the saved booking. */
+  const save = async (ls = lines): Promise<Booking> => {
+    const res = await bookingApi.rooming(b._id, {
+      lines: ls.map((l) => ({
+        room: l.room,
+        adults: l.adults,
+        children: l.children,
+        extraBeds: l.extraBeds,
+        guests: l.slots.filter((x) => x.name.trim()).map((x) => ({ _id: x._id, name: x.name.trim(), type: x.type, phone: x.phone.trim(), aadhaar: x.aadhaar })),
+      })),
+    });
+    setLines(toLines(res));
+    setDirty(false);
+    return res;
+  };
+
+  const onSave = async () => {
     setBusy(true);
     try {
-      await bookingApi.rooming(b._id, { lines: editing.map(({ roomNumber: _n, ...l }) => (void _n, l)) });
-      toast.success("Guest list saved");
-      setEditing(null);
+      await save();
+      toast.success("Guests saved");
       router.refresh();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Could not save");
@@ -52,194 +123,194 @@ export function RoomingList({ booking: b }: { booking: Booking }) {
     }
   };
 
-  const doUpload = async () => {
-    if (!upload) return;
+  const onUpload = async (li: number, si: number, files: File[]) => {
+    if (!files.length) return;
+    const slot = lines[li].slots[si];
+    if (!slot.name.trim()) return toast.info("Type the guest's name first, then attach the ID");
     const problem = idFileProblem(files);
     if (problem) return toast.error(problem);
-    setBusy(true);
+    const key = `${li}-${si}`;
+    setUploading(key);
     try {
-      await bookingApi.uploadGuestIds(b._id, upload._id, files, aadhaar);
-      toast.success(`ID uploaded for ${upload.name}`);
-      setUpload(null);
-      setFiles([]);
-      setAadhaar("");
+      // A new name is saved first so the file has a guest to belong to
+      let guestId = slot._id;
+      if (!guestId || dirty) {
+        const saved = await save();
+        const named = lines[li].slots.slice(0, si + 1).filter((x) => x.type === slot.type && x.name.trim()).length - 1;
+        guestId = saved.rooms[li]?.guests.filter((g) => g.type === slot.type)[named]?._id ?? "";
+      }
+      if (!guestId) throw new ApiError("Could not find the guest to attach the ID to", 422);
+      const res = await bookingApi.uploadGuestIds(b._id, guestId, files, slot.aadhaar);
+      setLines(toLines(res));
+      setDirty(false);
+      toast.success(`ID saved for ${slot.name.trim()}`);
       router.refresh();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Upload failed");
     } finally {
-      setBusy(false);
+      setUploading("");
     }
   };
 
-  const startEdit = () =>
-    setEditing(
-      b.rooms.map((r) => ({
-        room: r.room,
-        roomNumber: r.roomNumber,
-        adults: r.adults,
-        children: r.children,
-        extraBeds: r.extraBeds,
-        guests: r.guests.map((g) => ({ _id: g._id, name: g.name, type: g.type, phone: g.phone })),
-      }))
-    );
-
   return (
-    <section id="rooming-list" className="space-y-3 scroll-mt-20">
+    <section id="rooming-list" className="space-y-2 scroll-mt-20">
       <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-slate-100">
         <h2 className="text-xs font-bold text-brand uppercase tracking-wider flex items-center gap-1.5">
           <Users className="w-3.5 h-3.5" /> Rooming List
+          <span className="normal-case tracking-normal font-medium text-slate-400">
+            · {s.adultsWithId} of {s.adultsExpected} adult ID(s) on file · all optional
+          </span>
         </h2>
-        {canEditNames && (
-          <Button size="sm" variant="outline" className="no-print" icon={<UserRound className="w-3.5 h-3.5" />} onClick={startEdit}>
-            Edit Guests
+        {canEdit && dirty && (
+          <Button size="sm" className="no-print" icon={<Save className="w-3.5 h-3.5" />} loading={busy} onClick={onSave}>
+            Save Guests
           </Button>
         )}
       </div>
 
-      <div className={`text-xs rounded-lg border px-3 py-2 ${s.ready ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
-        <span className="font-bold inline-flex items-center gap-1.5">
-          {s.ready && <CheckCircle2 className="w-3.5 h-3.5" />}
-          ID proofs: {s.adultsWithId} of {s.adultsExpected} adult(s)
-        </span>
-        {!s.ready && s.missing.length > 0 && <span className="block mt-0.5">{s.missing.slice(0, 4).join(" · ")}</span>}
-      </div>
-
-      <div className="border border-line overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
+      <div className="border border-line overflow-x-auto bg-white">
+        <table className="w-full text-xs border-collapse min-w-[720px]">
           <thead>
             <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
               <th className={`${th} text-left`}>Room</th>
-              <th className={`${th} text-left`}>Guest</th>
-              <th className={`${th} text-center`}>Type</th>
-              <th className={`${th} text-left`}>Aadhaar</th>
+              <th className={`${th} text-left`}>Guest Name</th>
+              <th className={`${th} text-left`}>Phone</th>
+              <th className={`${th} text-left`}>Aadhaar No.</th>
               <th className={`${th} text-left`}>ID Proof</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {b.rooms.map((r) => {
-              const rows = r.guests.length ? r.guests : [null];
-              return rows.map((g, gi) => (
-                <tr key={`${r.room}-${g?._id ?? gi}`} className="hover:bg-head">
-                  {gi === 0 && (
-                    <td rowSpan={rows.length} className={`${td} align-top bg-white`}>
-                      <span className="font-mono font-bold text-slate-900">{r.roomNumber}</span> <span className="text-slate-400">· {r.roomTypeName}</span>
-                      <span className="block text-[10.5px] text-slate-500">
-                        {paxLabel(r.adults, r.children)}
-                        {r.extraBeds ? ` · ${r.extraBeds} extra bed (${formatINR(r.extraBedRate)}/night)` : ""}
-                      </span>
+            {lines.map((l, li) =>
+              l.slots.map((slot, si) => {
+                const key = `${li}-${si}`;
+                return (
+                  <tr key={`${l.room}-${si}`} className="hover:bg-head/60">
+                    {si === 0 && (
+                      <td rowSpan={l.slots.length} className={`${td} align-top bg-white w-[190px]`}>
+                        <span className="font-mono font-bold text-slate-900">{l.roomNumber}</span> <span className="text-slate-400">· {l.roomTypeName}</span>
+                        {canEditCounts ? (
+                          <div className="no-print mt-1.5 grid grid-cols-3 gap-1 text-[10px] text-slate-500">
+                            {(
+                              [
+                                ["adults", "Adults", 1],
+                                ["children", "Children", 0],
+                                ["extraBeds", "Ex. beds", 0],
+                              ] as const
+                            ).map(([k, label, min]) => (
+                              <label key={k} className="flex flex-col gap-0.5">
+                                {label}
+                                <input type="number" min={min} aria-label={`${label} in ${l.roomNumber}`} className={num} value={l[k]} onChange={(e) => changeCounts(li, { [k]: Number(e.target.value) })} />
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="block text-[10.5px] text-slate-500">{paxLabel(l.adults, l.children)}</span>
+                        )}
+                        {l.extraBeds > 0 && (
+                          <span className="block mt-1 text-[10.5px] text-slate-500">
+                            {l.extraBeds} extra bed{l.extraBeds === 1 ? "" : "s"}
+                            {l.extraBedRate ? ` · ${formatINR(l.extraBedRate)}/night` : ""}
+                          </span>
+                        )}
+                      </td>
+                    )}
+                    <td className={td}>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`shrink-0 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase ${slot.type === "adult" ? "bg-brand-light text-brand" : "bg-amber-50 text-amber-700"}`}>
+                          {slot.type === "adult" ? "Adult" : "Child"}
+                        </span>
+                        <input
+                          className={`${input} min-w-[130px]`}
+                          placeholder="Name (optional)"
+                          aria-label={`Guest name, room ${l.roomNumber} row ${si + 1}`}
+                          maxLength={100}
+                          disabled={!canEdit}
+                          value={slot.name}
+                          onChange={(e) => change(li, si, { name: e.target.value })}
+                        />
+                      </div>
                     </td>
-                  )}
-                  {g ? (
-                    <>
-                      <td className={`${td} font-semibold text-slate-800`}>{g.name}</td>
-                      <td className={`${td} text-center capitalize`}>{g.type}</td>
-                      <td className={`${td} font-mono`}>{g.aadhaarLast4 ? `XXXX XXXX ${g.aadhaarLast4}` : "—"}</td>
-                      <td className={td}>
-                        <span className="flex flex-wrap items-center gap-2">
-                          {g.idFiles.length === 0 ? (
-                            <span className={g.type === "adult" ? "text-amber-700 font-semibold" : "text-slate-400"}>{g.type === "adult" ? "Missing" : "Not needed"}</span>
-                          ) : canView ? (
-                            g.idFiles.map((_, i) => (
-                              <a key={i} href={`/api/bookings/${b._id}/guests/${g._id}/files/${i}`} target="_blank" rel="noreferrer" className="no-print inline-flex items-center gap-1 text-brand hover:underline">
+                    <td className={td}>
+                      <input
+                        type="tel"
+                        className={`${input} min-w-[110px]`}
+                        placeholder="Optional"
+                        aria-label={`Phone, room ${l.roomNumber} row ${si + 1}`}
+                        disabled={!canEdit}
+                        value={slot.phone}
+                        onChange={(e) => change(li, si, { phone: e.target.value })}
+                      />
+                    </td>
+                    <td className={td}>
+                      <input
+                        inputMode="numeric"
+                        maxLength={14}
+                        className={`${input} min-w-[120px] font-mono`}
+                        placeholder={slot.aadhaarLast4 ? `XXXX XXXX ${slot.aadhaarLast4}` : "Optional"}
+                        aria-label={`Aadhaar, room ${l.roomNumber} row ${si + 1}`}
+                        disabled={!canEdit}
+                        value={slot.aadhaar}
+                        onChange={(e) => change(li, si, { aadhaar: e.target.value })}
+                      />
+                    </td>
+                    <td className={td}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {slot.idFiles.length > 0 &&
+                          (canView && slot._id ? (
+                            slot.idFiles.map((_, i) => (
+                              <a
+                                key={i}
+                                href={`/api/bookings/${b._id}/guests/${slot._id}/files/${i}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="no-print inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline"
+                              >
                                 <Download className="w-3 h-3" /> File {i + 1}
                               </a>
                             ))
                           ) : (
-                            <span className="text-emerald-700">{g.idFiles.length} on file</span>
-                          )}
-                          {canUpload && (
-                            <button type="button" onClick={() => setUpload(g)} className="no-print inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-brand">
-                              <IdCard className="w-3 h-3" /> Upload
-                            </button>
-                          )}
-                        </span>
-                      </td>
-                    </>
-                  ) : (
-                    <td colSpan={4} className={`${td} text-slate-400`}>
-                      No names yet {canEditNames && "— use Edit Guests"}
+                            <span className="inline-flex items-center gap-1 text-emerald-700">
+                              <CheckCircle2 className="w-3 h-3" /> {slot.idFiles.length} on file
+                            </span>
+                          ))}
+                        {canUpload && (
+                          <label
+                            className={`no-print inline-flex cursor-pointer items-center gap-1.5 h-7 px-2 rounded-md border border-slate-300 bg-white text-[11px] font-bold text-slate-600 hover:border-brand hover:text-brand ${uploading ? "pointer-events-none opacity-60" : ""}`}
+                            title="Aadhaar / ID: JPG, PNG or PDF, max 4 MB each"
+                          >
+                            {uploading === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+                            {slot.idFiles.length ? "Add" : "Upload"}
+                            <input
+                              type="file"
+                              multiple
+                              accept={ID_FILE_ACCEPT}
+                              className="sr-only"
+                              aria-label={`ID, room ${l.roomNumber} row ${si + 1}`}
+                              onChange={(e) => {
+                                void onUpload(li, si, Array.from(e.target.files ?? []));
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                        {!slot.idFiles.length && !canUpload && <span className="text-slate-300">—</span>}
+                      </div>
                     </td>
-                  )}
-                </tr>
-              ));
-            })}
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
-
-      {/* Upload one guest's ID */}
-      <Modal open={Boolean(upload)} onClose={() => setUpload(null)} title={`Upload ID – ${upload?.name ?? ""}`} subtitle="JPG, PNG or PDF · max 4 MB each" icon={<IdCard className="w-4 h-4" />} size="sm">
-        <div className="space-y-3">
-          <FormField label="Aadhaar Number" hint="Optional · last 4 digits saved">
-            <input value={aadhaar} onChange={(e) => setAadhaar(e.target.value)} inputMode="numeric" maxLength={14} className={inputClass(false)} placeholder="XXXX XXXX XXXX" />
-          </FormField>
-          <FormField label="Files" required>
-            <input type="file" multiple accept={ID_FILE_ACCEPT} onChange={(e) => setFiles(Array.from(e.target.files ?? []))} className={`${inputClass(false)} py-1.5`} />
-          </FormField>
-          <Button className="w-full" loading={busy} disabled={!files.length} onClick={doUpload}>
-            Upload
+      {canEdit && dirty && (
+        <div className="no-print flex items-center justify-end gap-2 text-[11px] text-amber-700">
+          Unsaved changes
+          <Button size="sm" icon={<Save className="w-3.5 h-3.5" />} loading={busy} onClick={onSave}>
+            Save Guests
           </Button>
         </div>
-      </Modal>
-
-      {/* Edit guests / occupancy */}
-      <Modal open={Boolean(editing)} onClose={() => setEditing(null)} title="Edit Guests" subtitle={canEditCounts ? "Names, and adults / children / extra beds per room (changes the bill)" : "Guest names per room"} icon={<Users className="w-4 h-4" />} size="lg">
-        {editing && <RoomingEditor lines={editing} onChange={setEditing} canEditCounts={canEditCounts} />}
-        <Button className="w-full mt-4" loading={busy} onClick={save}>
-          Save Guest List
-        </Button>
-      </Modal>
+      )}
     </section>
-  );
-}
-
-function RoomingEditor({ lines, onChange, canEditCounts }: { lines: EditLine[]; onChange: (l: EditLine[]) => void; canEditCounts: boolean }) {
-  const patch = (i: number, p: Partial<EditLine>) => onChange(lines.map((l, j) => (j === i ? { ...l, ...p } : l)));
-  const num = "w-14 h-8 px-1 text-xs text-center bg-slate-50 border border-slate-300 rounded-md disabled:opacity-60";
-  return (
-    <div className="space-y-3">
-      {lines.map((l, i) => (
-        <div key={l.room} className="border border-line rounded-lg">
-          <div className="px-3 py-2 bg-head border-b border-line flex flex-wrap items-center gap-3 text-xs">
-            <span className="font-mono font-bold">Room {l.roomNumber}</span>
-            {(["adults", "children", "extraBeds"] as const).map((k) => (
-              <label key={k} className="flex items-center gap-1.5 text-slate-600">
-                {k === "extraBeds" ? "Extra beds" : k[0].toUpperCase() + k.slice(1)}
-                <input type="number" min={k === "adults" ? 1 : 0} disabled={!canEditCounts} className={num} value={l[k]} onChange={(e) => patch(i, { [k]: Number(e.target.value) })} />
-              </label>
-            ))}
-          </div>
-          <div className="p-2 space-y-1.5">
-            {l.guests.map((g, gi) => (
-              <div key={g._id || gi} className="flex flex-wrap items-center gap-2">
-                <input
-                  value={g.name}
-                  placeholder="Full name"
-                  onChange={(e) => patch(i, { guests: l.guests.map((x, xi) => (xi === gi ? { ...x, name: e.target.value } : x)) })}
-                  className={`${inputClass(false)} flex-1 min-w-[160px]`}
-                />
-                <select value={g.type} onChange={(e) => patch(i, { guests: l.guests.map((x, xi) => (xi === gi ? { ...x, type: e.target.value as "adult" | "child" } : x)) })} className={`${inputClass(false)} w-28`}>
-                  <option value="adult">Adult</option>
-                  <option value="child">Child</option>
-                </select>
-                <input value={g.phone} placeholder="Phone (optional)" onChange={(e) => patch(i, { guests: l.guests.map((x, xi) => (xi === gi ? { ...x, phone: e.target.value } : x)) })} className={`${inputClass(false)} w-40`} />
-                <button type="button" title="Remove" onClick={() => patch(i, { guests: l.guests.filter((_, xi) => xi !== gi) })} className="p-1.5 text-slate-400 hover:text-rose-600">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
-            {l.guests.length < l.adults + l.children && (
-              <button
-                type="button"
-                onClick={() => patch(i, { guests: [...l.guests, { _id: "", name: "", type: l.guests.filter((g) => g.type === "adult").length < l.adults ? "adult" : "child", phone: "" }] })}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-brand hover:underline"
-              >
-                <Plus className="w-3 h-3" /> Add guest ({l.guests.length} of {l.adults + l.children})
-              </button>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }

@@ -7,7 +7,6 @@ import { can } from "@/lib/permissions";
 import { round2 } from "@/lib/pricing";
 import type { SessionUser } from "@/lib/types";
 import type { CancelInput, PaymentInput } from "@/lib/validation/booking.schema";
-import { computeIdStatus } from "@/lib/rooming";
 import { parseIstLocal } from "@/lib/stayTimes";
 import { AppError } from "../../http/errors";
 import { Booking as BookingModel } from "../../models/Booking";
@@ -44,18 +43,11 @@ export async function checkInBooking(id: string, user: SessionUser, at?: string)
   const { doc, view } = await load(id, user);
   if (doc.status !== "confirmed") throw new AppError("Only confirmed bookings can be checked in", 409);
   if (doc.checkIn > todayIST()) throw new AppError("This guest is arriving on a later date", 409);
+  // Guest names, phones and IDs are optional: fill the booking's contact from the guest list if we have it
   const firstAdult = doc.rooms.flatMap((l) => l.guests ?? []).find((g) => g.type === "adult" && g.name?.trim());
-  if (!doc.guest.phone?.trim()) {
-    const phone = doc.rooms.flatMap((l) => l.guests ?? []).find((g) => g.phone?.trim())?.phone;
-    if (!phone) throw new AppError("Enter the main guest's phone number", 409);
-    doc.guest.phone = phone;
-  }
-  // Booked without a name: the list shows the main guest from now on
+  if (!doc.guest.phone?.trim()) doc.guest.phone = doc.rooms.flatMap((l) => l.guests ?? []).find((g) => g.phone?.trim())?.phone ?? "";
   if (doc.guest.name === "Walk-in guest" && firstAdult) doc.guest.name = firstAdult.name;
-  const ids = computeIdStatus(view);
-  if (!ids.ready) {
-    throw new AppError(`Every adult needs a name and an ID before check-in (${ids.adultsWithId} of ${ids.adultsExpected} done). ${ids.missing.slice(0, 3).join("; ")}`, 409);
-  }
+  void view;
   const when = actualMoment(at, "Check-in");
   // Early check-in is allowed, but not before the day before arrival
   if (when < new Date(doc.checkIn.getTime() - 86_400_000 + -5.5 * 3600_000)) {

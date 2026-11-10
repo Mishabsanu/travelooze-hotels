@@ -17,7 +17,6 @@ import type { SessionUser } from "@/lib/types";
 import { cancelSchema, optionalTime, paymentSchema } from "@/lib/validation/booking.schema";
 import { optionalText, requiredPhone, requiredText } from "@/lib/validation/common";
 import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi";
-import { CheckInForm } from "./CheckInForm";
 
 export type Dialog = null | "pay" | "id" | "cancel" | "edit" | "checkout" | "checkin";
 
@@ -113,11 +112,24 @@ export default function BookingDialogs({ b, user, dialog, setDialog, busy, arriv
         open={dialog === "checkin"}
         onClose={() => setDialog(null)}
         title="Check In"
-        subtitle={`${b.bookingNo} · Room ${b.rooms.map((r) => r.roomNumber).join(", ")} · fill every adult's name and ID`}
+        subtitle={`${b.bookingNo} · Room ${b.rooms.map((r) => r.roomNumber).join(", ")}`}
         icon={<LogIn className="w-4 h-4" />}
-        size="lg"
+        size="sm"
       >
-        <CheckInForm b={b} busy={busy} run={run} />
+        <Formik initialValues={{ at: toIstLocal() }} onSubmit={(v) => run(() => bookingApi.checkIn(b._id, v.at), "Guest checked in")}>
+          {({ values }) => (
+            <Form className="space-y-3 text-xs text-slate-600">
+              <TextField name="at" label="Check-in Time" type="datetime-local" max={toIstLocal()} required hint={`Expected ${timeLabel(b.arrivalTime || b.hotel?.checkInTime || "12:00")}`} />
+              {values.at && parseIstLocal(values.at) < stayMoment(b.checkIn, b.hotel?.checkInTime || "12:00") && (
+                <p className="font-semibold text-amber-700">Early check-in (before {timeLabel(b.hotel?.checkInTime || "12:00")})</p>
+              )}
+              <p className="text-slate-500">Guest names, phones and IDs are optional: add them any time in the Rooming List.</p>
+              <Button type="submit" className="w-full" loading={busy} icon={<LogIn className="w-4 h-4" />}>
+                Check In
+              </Button>
+            </Form>
+          )}
+        </Formik>
       </Modal>
 
       {/* Check out */}

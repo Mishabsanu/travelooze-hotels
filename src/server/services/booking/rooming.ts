@@ -16,7 +16,7 @@ import { RoomType, type RoomTypeDoc } from "../../models/RoomType";
 import { saveIdFile } from "../../storage";
 import { getBooking } from "./booking.service";
 
-type LineInput = { room: string; adults: number; children: number; extraBeds: number; guests: { _id?: string; name: string; type: string; phone: string }[] };
+type LineInput = { room: string; adults: number; children: number; extraBeds: number; guests: { _id?: string; name: string; type: string; phone: string; aadhaar?: string }[] };
 
 /**
  * Builds the booked-room lines for a new booking: occupancy, extra beds, rates and the first guest names.
@@ -163,7 +163,7 @@ export async function updateRooming(id: string, input: RoomingInput, user: Sessi
           name: g.name.trim(),
           type: g.type === "child" ? "child" : "adult",
           phone: g.phone ?? "",
-          aadhaarLast4: old?.aadhaarLast4 ?? "",
+          aadhaarLast4: (g.aadhaar ?? "").replace(/\D/g, "").length === 12 ? (g.aadhaar ?? "").replace(/\D/g, "").slice(-4) : (old?.aadhaarLast4 ?? ""),
           idFiles: old?.idFiles ?? [],
         };
       });

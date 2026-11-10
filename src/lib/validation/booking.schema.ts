@@ -16,6 +16,10 @@ export const guestEntrySchema = Yup.object({
   name: optionalText("Guest name", 100),
   type: Yup.string().oneOf(["adult", "child"]).default("adult"),
   phone: optionalText("Phone", 20),
+  /** Optional full Aadhaar number typed in the guest list (only the last 4 digits are stored) */
+  aadhaar: Yup.string()
+    .default("")
+    .test("aadhaar", "Aadhaar must be 12 digits", (v) => !v || v.replace(/\D/g, "").length === 12),
 });
 
 /** One booked room: who and how many stay in it */

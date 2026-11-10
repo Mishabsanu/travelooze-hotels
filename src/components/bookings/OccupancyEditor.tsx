@@ -192,7 +192,7 @@ export function OccupancyEditor({
                           value={l.guests?.[0]?.name ?? ""}
                           onChange={(e) => {
                             const next = [...values.lines];
-                            next[i] = { ...next[i], guests: [{ _id: "", name: e.target.value, type: "adult", phone: l.guests?.[0]?.phone ?? "" }] };
+                            next[i] = { ...next[i], guests: [{ _id: "", name: e.target.value, type: "adult", phone: l.guests?.[0]?.phone ?? "", aadhaar: "" }] };
                             void setFieldValue("lines", next);
                           }}
                         />
@@ -228,7 +228,7 @@ export function OccupancyEditor({
                           value={l.guests?.[0]?.phone ?? ""}
                           onChange={(e) => {
                             const next = [...values.lines];
-                            next[i] = { ...next[i], guests: [{ _id: "", name: l.guests?.[0]?.name ?? "", type: "adult", phone: e.target.value }] };
+                            next[i] = { ...next[i], guests: [{ _id: "", name: l.guests?.[0]?.name ?? "", type: "adult", phone: e.target.value, aadhaar: "" }] };
                             void setFieldValue("lines", next);
                           }}
                         />

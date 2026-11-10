@@ -206,7 +206,7 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
             />
           ) : null}
           {b.source === "agent" && <DetailItem label="Agent / Ref" value={`${b.agent?.name ?? "—"}${b.agentRef ? ` · ${b.agentRef}` : ""}`} />}
-          {b.source === "agent" && <DetailItem label="Bill To" value={b.billTo === "agent" ? "Agent credit account" : "Guest"} />}
+          {b.source === "agent" && <DetailItem label="Bill To" value={b.billTo === "agent" ? "Agent" : "Guest"} />}
         </DetailSection>
 
         {/* Guests (names, phones, IDs) are in the Rooming List; only older bookings kept an ID on the booking itself */}
@@ -231,7 +231,8 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
           </DetailSection>
         )}
 
-        <RoomingList booking={b} />
+        {/* Re-mounts after any change to the booking (move room, dates, ...) so the table matches it */}
+        <RoomingList key={`${b.updatedAt ?? ""}-${b.rooms.map((r) => r.room).join()}`} booking={b} />
 
         <section className="space-y-3">
           <h2 className="text-xs font-bold text-brand uppercase tracking-wider pb-1.5 border-b border-slate-100">Bill</h2>

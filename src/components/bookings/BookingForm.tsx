@@ -53,7 +53,6 @@ export function BookingForm(p: BookingFormProps) {
   // Aadhaar / ID files per room row (row 1 = main guest)
   const [idFiles, setIdFilesState] = useState<Record<string, File[]>>({});
   const setIdFiles = (room: string, files: File[]) => setIdFilesState((m) => ({ ...m, [room]: files }));
-  const anyFiles = Object.values(idFiles).some((x) => x.length);
   const [checkInNow, setCheckInNow] = useState(p.source === "walkin" && (p.preset?.checkIn ?? p.today) === p.today);
   const isAgent = p.source === "agent";
   const [perRoom, setPerRoom] = useState(2);
@@ -119,8 +118,7 @@ export function BookingForm(p: BookingFormProps) {
           }
         }
         if (checkInNow && p.canCheckIn && values.checkIn === p.today) {
-          if (booking.idStatus.ready) booking = await bookingApi.checkIn(booking._id);
-          else toast.info(`Saved. Check-in needs every adult's name and ID: ${booking.idStatus.adultsWithId} of ${booking.idStatus.adultsExpected} done.`);
+          booking = await bookingApi.checkIn(booking._id);
         }
       } catch (e) {
         toast.warning(`Booking ${booking.bookingNo} saved, but: ${(e as Error).message}`);
@@ -323,7 +321,7 @@ export function BookingForm(p: BookingFormProps) {
                 {p.canCheckIn && showCheckIn && values.checkIn === p.today && (
                   <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                     <input type="checkbox" checked={checkInNow} onChange={(e) => setCheckInNow(e.target.checked)} className="w-3.5 h-3.5 accent-brand" />
-                    Check the guest in now {!anyFiles && <span className="font-normal text-slate-400">(needs ID upload)</span>}
+                    Check the guest in now
                   </label>
                 )}
               </FormSection>

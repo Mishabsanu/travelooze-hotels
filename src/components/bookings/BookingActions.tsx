@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowRightLeft, BadgePercent, Ban, Trash2, CalendarRange, FileText, IdCard, LogIn, LogOut, Pencil, Printer, Receipt, Wallet } from "lucide-react";
+import { ArrowRightLeft, BadgePercent, Ban, CalendarRange, ChevronDown, FileText, IdCard, LogIn, LogOut, MoreHorizontal, Pencil, Printer, Receipt, Trash2, Wallet } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSession } from "@/components/providers/SessionProvider";
 import { Button } from "@/components/ui/Button";
@@ -87,24 +87,33 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
     cancel: b.status === "confirmed" && canBooking(user, b.source, "delete"),
   };
 
+  // Less used actions live in the "More" menu so the bar stays on one line
+  const more: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean; divider?: boolean }[] = [
+    ...(show.edit ? [{ label: "Edit Details", icon: <Pencil className="w-4 h-4" />, onClick: () => setDialog("edit") }] : []),
+    ...(canEditRate ? [{ label: "Edit Rate / Discount", icon: <BadgePercent className="w-4 h-4" />, onClick: () => setStay("rate") }] : []),
+    ...(show.charge ? [{ label: "Extra Charge", icon: <Receipt className="w-4 h-4" />, onClick: () => setStay("charge") }] : []),
+    ...(show.change
+      ? [
+          { label: "Change Dates", icon: <CalendarRange className="w-4 h-4" />, onClick: () => setStay("dates") },
+          { label: "Move Room", icon: <ArrowRightLeft className="w-4 h-4" />, onClick: () => setStay("move") },
+        ]
+      : []),
+    ...(show.id ? [{ label: "Upload ID", icon: <IdCard className="w-4 h-4" />, onClick: () => setDialog("id") }] : []),
+    { label: "Print", icon: <Printer className="w-4 h-4" />, onClick: () => window.print() },
+    ...(show.cancel ? [{ label: "Cancel / No-show", icon: <Ban className="w-4 h-4" />, onClick: () => setDialog("cancel"), danger: true, divider: true }] : []),
+    ...(canDelete ? [{ label: "Delete Booking", icon: <Trash2 className="w-4 h-4" />, onClick: () => setConfirmDelete(true), danger: true, divider: !show.cancel }] : []),
+  ];
+
   return (
     <div className="no-print flex flex-wrap items-center gap-2">
       {show.checkIn && (
-        <Button
-          icon={<LogIn className="w-4 h-4" />}
-          loading={busy && dialog === null}
-          onClick={() => setDialog("checkin")}
-        >
+        <Button icon={<LogIn className="w-4 h-4" />} loading={busy && dialog === null} onClick={() => setDialog("checkin")}>
           Check In
         </Button>
       )}
       {b.status === "confirmed" && !arrived && can(user, "check_in_out", "update") && (
         // Visible but locked until the arrival date, so staff know why they cannot check in yet
-        <Button
-          icon={<LogIn className="w-4 h-4" />}
-          disabled
-          title={`Check-in opens on the arrival date. If the guest came early, change the booking dates first.`}
-        >
+        <Button icon={<LogIn className="w-4 h-4" />} disabled title="Check-in opens on the arrival date. If the guest came early, change the booking dates first.">
           Check In (from {formatDay(b.checkIn)})
         </Button>
       )}
@@ -118,34 +127,16 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
           Record Payment
         </Button>
       )}
-      {show.id && (
-        <Button variant="outline" icon={<IdCard className="w-4 h-4" />} onClick={() => setDialog("id")}>
-          Upload ID
-        </Button>
+      {b.status !== "cancelled" && (
+        <Link
+          href={`/dashboard/front-office/bookings/${b._id}/invoice`}
+          className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50"
+        >
+          <FileText className="w-4 h-4" /> {b.invoiceNo ? "Invoice" : "Invoice / Proforma"}
+        </Link>
       )}
-      {show.edit && (
-        <Button variant="outline" icon={<Pencil className="w-4 h-4" />} onClick={() => setDialog("edit")}>
-          Edit Guest
-        </Button>
-      )}
-      {canEditRate && (
-        <Button variant="outline" icon={<BadgePercent className="w-4 h-4" />} onClick={() => setStay("rate")}>
-          Edit Rate / Discount
-        </Button>
-      )}
-      <Button variant="ghost" icon={<Printer className="w-4 h-4" />} onClick={() => window.print()}>
-        Print
-      </Button>
-      {show.cancel && (
-        <Button variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" icon={<Ban className="w-4 h-4" />} onClick={() => setDialog("cancel")}>
-          Cancel / No-show
-        </Button>
-      )}
-      {canDelete && (
-        <Button variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" icon={<Trash2 className="w-4 h-4" />} onClick={() => setConfirmDelete(true)}>
-          Delete
-        </Button>
-      )}
+      {more.length > 0 && <MoreMenu items={more} />}
+
       <ConfirmDeleteModal
         open={confirmDelete}
         entityLabel="Booking"
@@ -158,32 +149,60 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
         onCancel={() => setConfirmDelete(false)}
         onConfirm={removeBooking}
       />
-
-      {show.charge && (
-        <Button variant="outline" icon={<Receipt className="w-4 h-4" />} onClick={() => setStay("charge")}>
-          Extra Charge
-        </Button>
-      )}
-      {show.change && (
-        <>
-          <Button variant="outline" icon={<CalendarRange className="w-4 h-4" />} onClick={() => setStay("dates")}>
-            Change Dates
-          </Button>
-          <Button variant="outline" icon={<ArrowRightLeft className="w-4 h-4" />} onClick={() => setStay("move")}>
-            Move Room
-          </Button>
-        </>
-      )}
-      {b.status !== "cancelled" && (
-        <Link
-          href={`/dashboard/front-office/bookings/${b._id}/invoice`}
-          className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50"
-        >
-          <FileText className="w-4 h-4" /> {b.invoiceNo ? "Invoice" : "Proforma / Invoice"}
-        </Link>
-      )}
       {dialog && <BookingDialogs b={b} user={user} dialog={dialog} setDialog={setDialog} busy={busy} arrived={arrived} run={run} />}
       {stay && <StayDialogs b={b} dialog={stay} close={() => setStay(null)} busy={busy} today={today} run={run} canDiscount={can(user, "room_type", "update")} />}
+    </div>
+  );
+}
+
+/** "More ▾" drop-down with the less used booking actions. */
+function MoreMenu({ items }: { items: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean; divider?: boolean }[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50"
+      >
+        <MoreHorizontal className="w-4 h-4" /> More <ChevronDown className={`w-3.5 h-3.5 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute left-0 z-30 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                it.onClick();
+              }}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold ${it.divider ? "border-t border-slate-100" : ""} ${
+                it.danger ? "text-rose-600 hover:bg-rose-50" : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {it.icon}
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
