@@ -23,7 +23,7 @@ const BookingDialogs = dynamic(() => import("./BookingDialogs"), { ssr: false })
 const StayDialogs = dynamic(() => import("./StayDialogs").then((m) => m.StayDialogs), { ssr: false });
 
 /** Action bar of a booking: only the actions the user's role allows (the API enforces the same rules). */
-export function BookingActions({ booking: b, today, autoOpen }: { booking: Booking; today: string; autoOpen?: string }) {
+export function BookingActions({ booking: b, today, autoOpen, side = false }: { booking: Booking; today: string; autoOpen?: string; side?: boolean }) {
   const user = useSession();
   const router = useRouter();
   // Opened from the bookings list with ?do=checkin / checkout / pay: start with that pop-up
@@ -105,7 +105,7 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
   ];
 
   return (
-    <div className="no-print flex flex-wrap items-center gap-2">
+    <div className={side ? "no-print flex flex-col gap-2 [&>a]:w-full [&>a]:justify-center [&>button]:w-full [&>button]:justify-center" : "no-print flex flex-wrap items-center gap-2"}>
       {show.checkIn && (
         <Button icon={<LogIn className="w-4 h-4" />} loading={busy && dialog === null} onClick={() => setDialog("checkin")}>
           Check In
@@ -135,7 +135,7 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
           <FileText className="w-4 h-4" /> {b.invoiceNo ? "Invoice" : "Invoice / Proforma"}
         </Link>
       )}
-      {more.length > 0 && <MoreMenu items={more} />}
+      {more.length > 0 && (side ? <SideList items={more} /> : <MoreMenu items={more} />)}
 
       <ConfirmDeleteModal
         open={confirmDelete}
@@ -151,6 +151,27 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
       />
       {dialog && <BookingDialogs b={b} user={user} dialog={dialog} setDialog={setDialog} busy={busy} arrived={arrived} run={run} />}
       {stay && <StayDialogs b={b} dialog={stay} close={() => setStay(null)} busy={busy} today={today} run={run} canDiscount={can(user, "room_type", "update")} />}
+    </div>
+  );
+}
+
+/** All other actions as a plain list (right-hand panel of the booking page). */
+function SideList({ items }: { items: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean; divider?: boolean }[] }) {
+  return (
+    <div className="mt-1 flex flex-col border-t border-slate-100 pt-1.5">
+      {items.map((it) => (
+        <button
+          key={it.label}
+          type="button"
+          onClick={it.onClick}
+          className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs font-semibold ${it.divider ? "mt-1.5 border-t border-slate-100 pt-2.5" : ""} ${
+            it.danger ? "text-rose-600 hover:bg-rose-50" : "text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          {it.icon}
+          {it.label}
+        </button>
+      ))}
     </div>
   );
 }
