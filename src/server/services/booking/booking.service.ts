@@ -26,7 +26,7 @@ import { buildLines } from "./rooming";
 
 const POPULATE = [
   { path: "hotel", select: "name code address phone gstin checkInTime checkOutTime" },
-  { path: "agent", select: "name gstin" },
+  { path: "agent", select: "name gstin phone" },
   { path: "createdBy", select: "name -_id" },
   { path: "payments.by", select: "name -_id" },
   { path: "charges.by", select: "name -_id" },

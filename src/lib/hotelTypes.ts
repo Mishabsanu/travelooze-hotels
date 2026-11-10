@@ -137,7 +137,7 @@ export interface Booking {
     checkOutTime?: string;
   } | null;
   source: "walkin" | "agent";
-  agent: { _id: string; name: string; gstin?: string } | null;
+  agent: { _id: string; name: string; gstin?: string; phone?: string } | null;
   agentRef: string;
   billTo: "guest" | "agent";
   guest: { name: string; phone: string; address: string; aadhaarLast4: string; idFiles: string[] };

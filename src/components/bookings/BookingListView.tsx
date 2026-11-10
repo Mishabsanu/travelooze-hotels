@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, FileDown, LogIn, LogOut, Pencil, Wallet } from "lucide-react";
+import { Eye, FileDown, LogIn, LogOut, Pencil, Ticket, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { useSession } from "@/components/providers/SessionProvider";
@@ -86,6 +86,11 @@ function BookingRowActions({ b, user, today }: { b: Booking; user: SessionUser; 
       {(b.status === "confirmed" || b.status === "checked_in") && canBooking(user, b.source, "update") && (
         <Link href={`${href}?do=edit`} title="Edit booking" aria-label="Edit" className="p-1 rounded text-slate-400 hover:text-brand hover:bg-brand-light">
           <Pencil className="w-3.5 h-3.5" />
+        </Link>
+      )}
+      {b.status !== "cancelled" && (
+        <Link href={`${href}/voucher`} title="Booking voucher (send on WhatsApp / PDF)" aria-label="Voucher" className="p-1 rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-50">
+          <Ticket className="w-3.5 h-3.5" />
         </Link>
       )}
       {b.status !== "cancelled" && (

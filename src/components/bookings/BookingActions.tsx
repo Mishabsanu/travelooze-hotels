@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, BadgePercent, Ban, CalendarRange, ChevronDown, FileText, IdCard, LogIn, LogOut, MoreHorizontal, Pencil, Printer, Receipt, Trash2, Wallet } from "lucide-react";
+import { ArrowRightLeft, BadgePercent, Ban, CalendarRange, ChevronDown, FileText, IdCard, LogIn, LogOut, MoreHorizontal, Pencil, Printer, Receipt, Ticket, Trash2, Wallet } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -133,6 +133,14 @@ export function BookingActions({ booking: b, today, autoOpen, side = false }: { 
           className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50"
         >
           <FileText className="w-4 h-4" /> {b.invoiceNo ? "Invoice" : "Invoice / Proforma"}
+        </Link>
+      )}
+      {b.status !== "cancelled" && (
+        <Link
+          href={`/dashboard/front-office/bookings/${b._id}/voucher`}
+          className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg border border-emerald-600 bg-emerald-50 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+        >
+          <Ticket className="w-4 h-4" /> Booking Voucher
         </Link>
       )}
       {more.length > 0 && (side ? <SideList items={more} /> : <MoreMenu items={more} />)}

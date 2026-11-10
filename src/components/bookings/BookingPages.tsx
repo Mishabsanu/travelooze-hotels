@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarCheck, CheckCircle2, Download, Eye, FileDown, FileText, Plus } from "lucide-react";
+import { ArrowLeft, CalendarCheck, CheckCircle2, Ticket, Download, Eye, FileDown, FileText, Plus } from "lucide-react";
 import Link from "next/link";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 import { APP_NAME, LOGO_SRC } from "@/lib/brand";
@@ -25,6 +25,8 @@ import { BookingListView, BookingStatusBadge, SourceBadge } from "./BookingListV
 import { FolioList } from "./FolioList";
 import { InvoiceSheet } from "./InvoiceSheet";
 import { InvoiceToolbar } from "./InvoiceToolbar";
+import { VoucherSheet } from "./VoucherSheet";
+import { VoucherToolbar } from "./VoucherToolbar";
 import { RoomingList } from "./RoomingList";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -86,6 +88,9 @@ function CreatedBanner({ b }: { b: Awaited<ReturnType<typeof getBooking>> }) {
           {b.rooms.length === 1 ? "" : "s"} · <b>{formatINR(b.grandTotal)}</b>
         </p>
       </div>
+      <Link href={`${href}/voucher`} className={`${bannerBtn} bg-emerald-600 text-white hover:bg-emerald-700`}>
+        <Ticket className="h-4 w-4" /> Send Voucher
+      </Link>
       <Link href={`${href}/invoice`} className={`${bannerBtn} bg-brand text-white hover:bg-brand-dark`}>
         <FileText className="h-4 w-4" /> View Invoice
       </Link>
@@ -417,6 +422,22 @@ function Total({ label, value, strong, line, tone = "" }: { label: string; value
     <div className={`flex items-baseline justify-between gap-3 ${line ? "border-t border-line pt-1.5" : ""}`}>
       <dt className={strong ? "font-bold text-slate-800" : "text-slate-500"}>{label}</dt>
       <dd className={`tabular-nums ${strong ? "text-sm font-black" : "font-semibold"} ${tone || "text-slate-800"}`}>{value}</dd>
+    </div>
+  );
+}
+
+/** Booking voucher: prices shown for walk-ins, hidden for agent bookings unless ?amounts=1 */
+export async function VoucherPage({ params, searchParams }: { params: IdParams; searchParams?: SearchParams }) {
+  const user = await requireUser();
+  if (!canListBookings(user)) return <AccessDenied />;
+  const b = await orNotFound(getBooking((await params).id, user));
+  const sp = await searchParams;
+  const asked = first(sp?.amounts);
+  const showAmounts = asked === "1" ? true : asked === "0" ? false : b.source === "walkin";
+  return (
+    <div className="space-y-4">
+      <VoucherToolbar b={b} showAmounts={showAmounts} autoDownload={first(sp?.download) === "1"} />
+      <VoucherSheet b={b} showAmounts={showAmounts} />
     </div>
   );
 }
