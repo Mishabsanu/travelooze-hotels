@@ -141,6 +141,13 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
   const sp = await searchParams;
   const canSeeIds = can(user, "guest_id", "view");
   const discountRatio = b.roomCharges ? b.discount / b.roomCharges : 0;
+  const billGroups = Object.values(
+    b.rooms.reduce<Record<string, { key: string; numbers: string[]; type: string; adults: number; children: number; rate: number; extraBeds: number; extraBedRate: number }>>((m, r) => {
+      const key = [r.roomTypeName, r.ratePerNight, r.adults, r.children, r.extraBeds, r.extraBedRate].join("|");
+      (m[key] ??= { key, numbers: [], type: r.roomTypeName, adults: r.adults, children: r.children, rate: r.ratePerNight, extraBeds: r.extraBeds, extraBedRate: r.extraBedRate }).numbers.push(r.roomNumber);
+      return m;
+    }, {})
+  );
 
   return (
     <div className="space-y-4">
@@ -284,88 +291,84 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                 count: b.balance > 0 ? formatINR(b.balance) : undefined,
                 content: (
                   <>
-                    <section className="space-y-3">
-                      <h2 className="text-xs font-bold text-brand uppercase tracking-wider pb-1.5 border-b border-slate-100">Bill</h2>
-                      <div className="border border-line overflow-x-auto">
-                        <table className="w-full text-xs border-collapse min-w-[640px]">
-                          <thead>
-                            <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                              {["Room", "Type", "Guests", "Rate / Night", "Extra Bed / Night", "Nights", "GST", "Amount"].map((h, i) => (
-                                <th key={h} className={`px-3 py-2 border-r border-line last:border-r-0 whitespace-nowrap ${i > 2 ? "text-right" : "text-left"}`}>
-                                  {h}
-                                </th>
-                              ))}
+                    {/* Rooms: identical rooms (type, rate, guests, beds) on one line */}
+                    <div className="overflow-x-auto rounded-lg border border-line">
+                      <table className="w-full min-w-[600px] border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-line bg-head text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                            {["Rooms", "Type", "Guests / Room", "Rate / Night", "Extra Bed", "Nights", "GST", "Amount"].map((h, i) => (
+                              <th key={h} className={`whitespace-nowrap px-2.5 py-1.5 ${i > 2 ? "text-right" : "text-left"}`}>
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-line">
+                          {billGroups.map((g) => (
+                            <tr key={g.key}>
+                              <td className="px-2.5 py-1.5">
+                                <span className="font-mono font-bold text-slate-900">{g.numbers.join(", ")}</span>
+                                {g.numbers.length > 1 && <span className="ml-1 text-slate-400">× {g.numbers.length}</span>}
+                              </td>
+                              <td className="px-2.5 py-1.5">{g.type}</td>
+                              <td className="whitespace-nowrap px-2.5 py-1.5">{paxLabel(g.adults, g.children)}</td>
+                              <td className="px-2.5 py-1.5 text-right tabular-nums">{formatINR(g.rate)}</td>
+                              <td className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">{g.extraBeds ? `${g.extraBeds} × ${formatINR(g.extraBedRate)}` : "—"}</td>
+                              <td className="px-2.5 py-1.5 text-right">{b.nights}</td>
+                              <td className="px-2.5 py-1.5 text-right">{gstRateFor((g.rate + g.extraBeds * g.extraBedRate) * (1 - discountRatio))}%</td>
+                              <td className="px-2.5 py-1.5 text-right font-semibold tabular-nums">{formatINR((g.rate + g.extraBeds * g.extraBedRate) * b.nights * g.numbers.length)}</td>
                             </tr>
-                          </thead>
-                          <tbody className="divide-y divide-line">
-                            {b.rooms.map((r) => {
-                              const perNight = r.ratePerNight + r.extraBeds * r.extraBedRate;
-                              return (
-                                <tr key={r.room}>
-                                  <td className="px-3 py-2 border-r border-line font-mono font-bold">{r.roomNumber}</td>
-                                  <td className="px-3 py-2 border-r border-line">{r.roomTypeName}</td>
-                                  <td className="px-3 py-2 border-r border-line whitespace-nowrap">{paxLabel(r.adults, r.children)}</td>
-                                  <td className="px-3 py-2 border-r border-line text-right tabular-nums">{formatINR(r.ratePerNight)}</td>
-                                  <td className="px-3 py-2 border-r border-line text-right tabular-nums">{r.extraBeds ? `${r.extraBeds} × ${formatINR(r.extraBedRate)}` : "—"}</td>
-                                  <td className="px-3 py-2 border-r border-line text-right">{b.nights}</td>
-                                  <td className="px-3 py-2 border-r border-line text-right">{gstRateFor(perNight * (1 - discountRatio))}%</td>
-                                  <td className="px-3 py-2 text-right tabular-nums">{formatINR(perNight * b.nights)}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot className="border-t border-line">
-                            <BillRow label="Room charges" value={formatINR(b.roomCharges)} />
-                            {b.extraBedCharges > 0 && <BillRow label="Extra beds" value={formatINR(b.extraBedCharges)} />}
-                            {b.discount > 0 && <BillRow label="Discount" value={`− ${formatINR(b.discount)}`} />}
-                            <BillRow label="GST" value={formatINR(b.gstAmount)} />
-                            <BillRow label="Accommodation total" value={formatINR(b.total)} strong />
-                            {b.extrasTotal > 0 && <BillRow label="Extra charges (incl. GST)" value={formatINR(b.extrasTotal)} />}
-                            {b.extrasTotal > 0 && <BillRow label="Grand total" value={formatINR(b.grandTotal)} strong />}
-                            <BillRow label="Paid" value={formatINR(b.paid)} />
-                            <BillRow label="Balance Due" value={formatINR(b.balance)} strong tone={b.balance > 0 ? "text-rose-600" : "text-emerald-700"} />
-                            {b.billTo === "agent" && (
-                              <BillRow label="To collect from guest (extras)" value={formatINR(b.guestDue)} tone={b.guestDue > 0 ? "text-rose-600" : "text-emerald-700"} />
-                            )}
-                          </tfoot>
-                        </table>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                      <div className="min-w-0 space-y-4">
+                        <FolioList booking={b} />
+                        <section className="space-y-2">
+                          <h2 className="text-xs font-bold uppercase tracking-wider text-brand">Payments</h2>
+                          {b.payments.length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-slate-200 px-3 py-3 text-xs text-slate-400">No payments yet</p>
+                          ) : (
+                            <div className="overflow-x-auto rounded-lg border border-line">
+                              <table className="w-full border-collapse text-xs">
+                                <tbody className="divide-y divide-line">
+                                  {b.payments.map((p) => (
+                                    <tr key={p._id}>
+                                      <td className="whitespace-nowrap px-2.5 py-1.5">{formatDateTime(p.at)}</td>
+                                      <td className="px-2.5 py-1.5">
+                                        {PAYMENT_MODES[p.mode]}
+                                        {p.reference && <span className="ml-1 font-mono text-slate-400">{p.reference}</span>}
+                                      </td>
+                                      <td className="px-2.5 py-1.5">
+                                        <Badge variant={p.paidBy === "agent" ? "warning" : "neutral"}>{p.paidBy}</Badge>
+                                        <span className="ml-1.5 text-slate-400">by {p.by?.name ?? "—"}</span>
+                                      </td>
+                                      <td className="px-2.5 py-1.5 text-right font-semibold tabular-nums">{formatINR(p.amount)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </section>
                       </div>
-                    </section>
 
-                    <FolioList booking={b} />
-
-                    {b.payments.length > 0 && (
-                      <section className="space-y-3">
-                        <h2 className="text-xs font-bold text-brand uppercase tracking-wider pb-1.5 border-b border-slate-100">Payments</h2>
-                        <div className="border border-line overflow-x-auto">
-                          <table className="w-full text-xs border-collapse">
-                            <thead>
-                              <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                                {["Date", "Mode", "Paid By", "Reference", "Received By", "Amount"].map((h) => (
-                                  <th key={h} className="px-3 py-2 border-r border-line last:border-r-0 text-left last:text-right">
-                                    {h}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-line">
-                              {b.payments.map((p) => (
-                                <tr key={p._id}>
-                                  <td className="px-3 py-2 border-r border-line">{formatDateTime(p.at)}</td>
-                                  <td className="px-3 py-2 border-r border-line">{PAYMENT_MODES[p.mode]}</td>
-                                  <td className="px-3 py-2 border-r border-line">
-                                    <Badge variant={p.paidBy === "agent" ? "warning" : "neutral"}>{p.paidBy}</Badge>
-                                  </td>
-                                  <td className="px-3 py-2 border-r border-line font-mono">{p.reference || "—"}</td>
-                                  <td className="px-3 py-2 border-r border-line">{p.by?.name ?? "—"}</td>
-                                  <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatINR(p.amount)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </section>
-                    )}
+                      {/* Totals */}
+                      <dl className="space-y-1 rounded-lg border border-line bg-slate-50/60 p-3 text-xs">
+                        <Total label="Room charges" value={formatINR(b.roomCharges)} />
+                        {b.extraBedCharges > 0 && <Total label="Extra beds" value={formatINR(b.extraBedCharges)} />}
+                        {b.discount > 0 && <Total label="Discount" value={`− ${formatINR(b.discount)}`} />}
+                        <Total label="GST" value={formatINR(b.gstAmount)} />
+                        <Total label="Accommodation" value={formatINR(b.total)} strong line />
+                        {b.extrasTotal > 0 && <Total label="Extra charges" value={formatINR(b.extrasTotal)} />}
+                        {b.extrasTotal > 0 && <Total label="Grand total" value={formatINR(b.grandTotal)} strong />}
+                        <Total label="Paid" value={formatINR(b.paid)} />
+                        <Total label="Balance due" value={formatINR(b.balance)} strong line tone={b.balance > 0 ? "text-rose-600" : "text-emerald-700"} />
+                        {b.billTo === "agent" && <Total label="Guest pays (extras)" value={formatINR(b.guestDue)} tone={b.guestDue > 0 ? "text-rose-600" : "text-emerald-700"} />}
+                      </dl>
+                    </div>
                   </>
                 ),
               },
@@ -409,14 +412,12 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
   );
 }
 
-function BillRow({ label, value, strong, tone = "" }: { label: string; value: string; strong?: boolean; tone?: string }) {
+function Total({ label, value, strong, line, tone = "" }: { label: string; value: string; strong?: boolean; line?: boolean; tone?: string }) {
   return (
-    <tr className={strong ? "bg-head" : ""}>
-      <td colSpan={7} className={`px-3 py-1.5 text-right ${strong ? "font-bold text-slate-800" : "text-slate-500"}`}>
-        {label}
-      </td>
-      <td className={`px-3 py-1.5 text-right tabular-nums ${strong ? "font-black" : "font-semibold"} ${tone}`}>{value}</td>
-    </tr>
+    <div className={`flex items-baseline justify-between gap-3 ${line ? "border-t border-line pt-1.5" : ""}`}>
+      <dt className={strong ? "font-bold text-slate-800" : "text-slate-500"}>{label}</dt>
+      <dd className={`tabular-nums ${strong ? "text-sm font-black" : "font-semibold"} ${tone || "text-slate-800"}`}>{value}</dd>
+    </div>
   );
 }
 

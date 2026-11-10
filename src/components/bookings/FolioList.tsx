@@ -11,8 +11,8 @@ import { formatDay, formatINR } from "@/lib/format";
 import type { Booking, BookingCharge } from "@/lib/hotelTypes";
 import { ApiError, apiRequest } from "@/services/apiClient";
 
-const th = "px-3 py-2 border-r border-line last:border-r-0 whitespace-nowrap";
-const td = "px-3 py-2 border-r border-line last:border-r-0";
+const th = "px-2.5 py-1.5 border-r border-line last:border-r-0 whitespace-nowrap";
+const td = "px-2.5 py-1.5 border-r border-line last:border-r-0";
 
 /** Extra charges (folio) on a booking. Removing a charge needs the payment "delete" permission. */
 export function FolioList({ booking: b }: { booking: Booking }) {

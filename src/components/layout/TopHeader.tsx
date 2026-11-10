@@ -49,9 +49,8 @@ export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: (
                 key={mod.id}
                 href={mod.items[0].href}
                 prefetch={false}
-                className={`py-2.5 shrink-0 text-xs font-semibold uppercase tracking-wider relative ${
-                  active ? "text-brand font-bold" : "text-slate-600 hover:text-slate-900"
-                }`}
+                className={`py-2.5 shrink-0 text-xs font-semibold uppercase tracking-wider relative ${active ? "text-brand font-bold" : "text-slate-600 hover:text-slate-900"
+                  }`}
               >
                 {mod.label}
                 {active && (
@@ -75,11 +74,10 @@ export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`py-2 shrink-0 text-xs border-b-2 ${
-                  active
+                className={`py-2 shrink-0 text-xs border-b-2 ${active
                     ? "text-slate-900 font-semibold border-brand"
                     : "text-slate-500 hover:text-slate-900 border-transparent"
-                }`}
+                  }`}
               >
                 {item.label}
               </Link>

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Download, Loader2, Paperclip, Save, Users } from "lucide-react";
+import { CheckCircle2, ChevronRight, Download, Loader2, Paperclip, Save, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -16,9 +16,8 @@ import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi
 type Slot = { _id: string; name: string; type: "adult" | "child"; phone: string; aadhaar: string; aadhaarLast4: string; idFiles: string[] };
 type Line = { room: string; roomNumber: string; roomTypeName: string; adults: number; children: number; extraBeds: number; extraBedRate: number; slots: Slot[] };
 
-const th = "px-2.5 py-2 border-r border-line last:border-r-0 whitespace-nowrap";
-const td = "px-2.5 py-1.5 border-r border-line last:border-r-0 align-middle";
-const input = "w-full h-8 px-2 text-xs bg-slate-50 border border-slate-300 rounded-md focus:border-brand focus:bg-white focus:outline-none disabled:bg-transparent disabled:border-transparent";
+const td = "px-2 py-1 align-middle";
+const input = "w-full h-7 px-2 text-xs bg-slate-50 border border-slate-300 rounded-md focus:border-brand focus:bg-white focus:outline-none disabled:bg-transparent disabled:border-transparent";
 const num = "w-12 h-7 px-1 text-xs text-center bg-white border border-slate-300 rounded-md focus:border-brand focus:outline-none";
 
 const empty = (type: Slot["type"]): Slot => ({ _id: "", name: "", type, phone: "", aadhaar: "", aadhaarLast4: "", idFiles: [] });
@@ -71,6 +70,10 @@ export function RoomingList({ booking: b }: { booking: Booking }) {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState("");
+  const [openRooms, setOpenRooms] = useState<Set<number>>(() => {
+    const slots = b.rooms.reduce((n, r) => n + r.adults + r.children, 0);
+    return b.rooms.length <= 3 && slots <= 12 ? new Set(b.rooms.map((_, i) => i)) : new Set();
+  });
 
   const open = b.status === "confirmed" || b.status === "checked_in";
   const canEditCounts = open && canBooking(user, b.source, "update");
@@ -152,154 +155,182 @@ export function RoomingList({ booking: b }: { booking: Booking }) {
     }
   };
 
+  const totalSlots = lines.reduce((n, l) => n + l.slots.length, 0);
+  const named = lines.reduce((n, l) => n + l.slots.filter((x) => x.name.trim()).length, 0);
+  const allOpen = openRooms.size === lines.length;
+  const toggle = (li: number) =>
+    setOpenRooms((o) => {
+      const n = new Set(o);
+      if (n.has(li)) n.delete(li);
+      else n.add(li);
+      return n;
+    });
+
   return (
     <section id="rooming-list" className="space-y-2 scroll-mt-20">
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 border-b border-slate-100">
-        <h2 className="text-xs font-bold text-brand uppercase tracking-wider flex items-center gap-1.5">
-          <Users className="w-3.5 h-3.5" /> Rooming List
-          <span className="normal-case tracking-normal font-medium text-slate-400">
-            · {s.adultsWithId} of {s.adultsExpected} adult ID(s) on file · all optional
-          </span>
-        </h2>
-        {canEdit && dirty && (
-          <Button size="sm" className="no-print" icon={<Save className="w-3.5 h-3.5" />} loading={busy} onClick={onSave}>
-            Save Guests
-          </Button>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs text-slate-500">
+          <Users className="w-3.5 h-3.5 text-brand" />
+          <b className="text-slate-800">Guests</b> · {named} of {totalSlots} named · {s.adultsWithId} ID{s.adultsWithId === 1 ? "" : "s"} · all optional
+        </p>
+        <div className="no-print flex items-center gap-2">
+          {lines.length > 1 && (
+            <button type="button" onClick={() => setOpenRooms(allOpen ? new Set() : new Set(lines.map((_, i) => i)))} className="text-[11px] font-bold text-brand hover:underline">
+              {allOpen ? "Close all" : "Open all"}
+            </button>
+          )}
+          {canEdit && dirty && (
+            <Button size="sm" icon={<Save className="w-3.5 h-3.5" />} loading={busy} onClick={onSave}>
+              Save Guests
+            </Button>
+          )}
+        </div>
       </div>
 
-      <div className="border border-line overflow-x-auto bg-white">
-        <table className="w-full text-xs border-collapse min-w-[720px]">
-          <thead>
-            <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-              <th className={`${th} text-left`}>Room</th>
-              <th className={`${th} text-left`}>Guest Name</th>
-              <th className={`${th} text-left`}>Phone</th>
-              <th className={`${th} text-left`}>Aadhaar No.</th>
-              <th className={`${th} text-left`}>ID Proof</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {lines.map((l, li) =>
-              l.slots.map((slot, si) => {
-                const key = `${li}-${si}`;
-                return (
-                  <tr key={`${l.room}-${si}`} className="hover:bg-head/60">
-                    {si === 0 && (
-                      <td rowSpan={l.slots.length} className={`${td} align-top bg-white w-[190px]`}>
-                        <span className="font-mono font-bold text-slate-900">{l.roomNumber}</span> <span className="text-slate-400">· {l.roomTypeName}</span>
-                        {canEditCounts ? (
-                          <div className="no-print mt-1.5 grid grid-cols-3 gap-1 text-[10px] text-slate-500">
-                            {(
-                              [
-                                ["adults", "Adults", 1],
-                                ["children", "Children", 0],
-                                ["extraBeds", "Ex. beds", 0],
-                              ] as const
-                            ).map(([k, label, min]) => (
-                              <label key={k} className="flex flex-col gap-0.5">
-                                {label}
-                                <input type="number" min={min} aria-label={`${label} in ${l.roomNumber}`} className={num} value={l[k]} onChange={(e) => changeCounts(li, { [k]: Number(e.target.value) })} />
-                              </label>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="block text-[10.5px] text-slate-500">{paxLabel(l.adults, l.children)}</span>
-                        )}
-                        {l.extraBeds > 0 && (
-                          <span className="block mt-1 text-[10.5px] text-slate-500">
-                            {l.extraBeds} extra bed{l.extraBeds === 1 ? "" : "s"}
-                            {l.extraBedRate ? ` · ${formatINR(l.extraBedRate)}/night` : ""}
-                          </span>
-                        )}
-                      </td>
-                    )}
-                    <td className={td}>
-                      <div className="flex items-center gap-1.5">
-                        <span className={`shrink-0 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase ${slot.type === "adult" ? "bg-brand-light text-brand" : "bg-amber-50 text-amber-700"}`}>
-                          {slot.type === "adult" ? "Adult" : "Child"}
+      <div className="border border-line overflow-x-auto bg-white rounded-lg">
+        <table className="w-full text-xs border-collapse min-w-[620px]">
+          <tbody>
+            {lines.map((l, li) => {
+              const isOpen = openRooms.has(li);
+              const filled = l.slots.filter((x) => x.name.trim()).length;
+              const ids = l.slots.filter((x) => x.idFiles.length).length;
+              return [
+                <tr key={`h-${l.room}`} className={`border-t border-line first:border-t-0 bg-slate-50/80 ${isOpen ? "" : "hover:bg-slate-100"}`}>
+                  <td colSpan={4} className="px-2.5 py-1.5">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <button
+                        type="button"
+                        onClick={() => toggle(li)}
+                        aria-expanded={isOpen}
+                        className="no-print inline-flex items-center gap-1.5 text-left"
+                        title={isOpen ? "Close" : "Open to add names, phones, IDs"}
+                      >
+                        <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition ${isOpen ? "rotate-90" : ""}`} />
+                        <span className="font-mono font-bold text-slate-900">{l.roomNumber}</span>
+                        <span className="text-slate-400">· {l.roomTypeName}</span>
+                      </button>
+                      <span className="text-slate-600">{paxLabel(l.adults, l.children)}</span>
+                      {l.extraBeds > 0 && (
+                        <span className="text-slate-500">
+                          +{l.extraBeds} extra bed{l.extraBeds === 1 ? "" : "s"}
+                          {l.extraBedRate ? ` (${formatINR(l.extraBedRate)}/night)` : ""}
                         </span>
-                        <input
-                          className={`${input} min-w-[130px]`}
-                          placeholder="Name (optional)"
-                          aria-label={`Guest name, room ${l.roomNumber} row ${si + 1}`}
-                          maxLength={100}
-                          disabled={!canEdit}
-                          value={slot.name}
-                          onChange={(e) => change(li, si, { name: e.target.value })}
-                        />
-                      </div>
-                    </td>
-                    <td className={td}>
-                      <input
-                        type="tel"
-                        className={`${input} min-w-[110px]`}
-                        placeholder="Optional"
-                        aria-label={`Phone, room ${l.roomNumber} row ${si + 1}`}
-                        disabled={!canEdit}
-                        value={slot.phone}
-                        onChange={(e) => change(li, si, { phone: e.target.value })}
-                      />
-                    </td>
-                    <td className={td}>
-                      <input
-                        inputMode="numeric"
-                        maxLength={14}
-                        className={`${input} min-w-[120px] font-mono`}
-                        placeholder={slot.aadhaarLast4 ? `XXXX XXXX ${slot.aadhaarLast4}` : "Optional"}
-                        aria-label={`Aadhaar, room ${l.roomNumber} row ${si + 1}`}
-                        disabled={!canEdit}
-                        value={slot.aadhaar}
-                        onChange={(e) => change(li, si, { aadhaar: e.target.value })}
-                      />
-                    </td>
-                    <td className={td}>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {slot.idFiles.length > 0 &&
-                          (canView && slot._id ? (
-                            slot.idFiles.map((_, i) => (
-                              <a
-                                key={i}
-                                href={`/api/bookings/${b._id}/guests/${slot._id}/files/${i}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="no-print inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline"
-                              >
-                                <Download className="w-3 h-3" /> File {i + 1}
-                              </a>
-                            ))
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-emerald-700">
-                              <CheckCircle2 className="w-3 h-3" /> {slot.idFiles.length} on file
-                            </span>
+                      )}
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${filled === l.slots.length ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                        {filled}/{l.slots.length} named
+                      </span>
+                      {ids > 0 && <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">{ids} ID</span>}
+                      {canEditCounts && isOpen && (
+                        <span className="no-print ml-auto flex items-center gap-2 text-[10.5px] text-slate-500">
+                          {(
+                            [
+                              ["adults", "Adults", 1],
+                              ["children", "Children", 0],
+                              ["extraBeds", "Extra beds", 0],
+                            ] as const
+                          ).map(([k, label, min]) => (
+                            <label key={k} className="flex items-center gap-1">
+                              {label}
+                              <input type="number" min={min} aria-label={`${label} in ${l.roomNumber}`} className={num} value={l[k]} onChange={(e) => changeCounts(li, { [k]: Number(e.target.value) })} />
+                            </label>
                           ))}
-                        {canUpload && (
-                          <label
-                            className={`no-print inline-flex cursor-pointer items-center gap-1.5 h-7 px-2 rounded-md border border-slate-300 bg-white text-[11px] font-bold text-slate-600 hover:border-brand hover:text-brand ${uploading ? "pointer-events-none opacity-60" : ""}`}
-                            title="Aadhaar / ID: JPG, PNG or PDF, max 4 MB each"
-                          >
-                            {uploading === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
-                            {slot.idFiles.length ? "Add" : "Upload"}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>,
+                ...(isOpen
+                  ? l.slots.map((slot, si) => {
+                      const key = `${li}-${si}`;
+                      return (
+                        <tr key={`${l.room}-${si}`} className="border-t border-line/70">
+                          <td className={`${td} pl-7`}>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-11 shrink-0 text-center rounded px-1 py-0.5 text-[9.5px] font-bold uppercase ${slot.type === "adult" ? "bg-brand-light text-brand" : "bg-amber-50 text-amber-700"}`}>
+                                {slot.type === "adult" ? "Adult" : "Child"}
+                              </span>
+                              <input
+                                className={`${input} min-w-[140px]`}
+                                placeholder="Name"
+                                aria-label={`Guest name, room ${l.roomNumber} row ${si + 1}`}
+                                maxLength={100}
+                                disabled={!canEdit}
+                                value={slot.name}
+                                onChange={(e) => change(li, si, { name: e.target.value })}
+                              />
+                            </div>
+                          </td>
+                          <td className={td}>
                             <input
-                              type="file"
-                              multiple
-                              accept={ID_FILE_ACCEPT}
-                              className="sr-only"
-                              aria-label={`ID, room ${l.roomNumber} row ${si + 1}`}
-                              onChange={(e) => {
-                                void onUpload(li, si, Array.from(e.target.files ?? []));
-                                e.target.value = "";
-                              }}
+                              type="tel"
+                              className={`${input} min-w-[110px]`}
+                              placeholder="Phone"
+                              aria-label={`Phone, room ${l.roomNumber} row ${si + 1}`}
+                              disabled={!canEdit}
+                              value={slot.phone}
+                              onChange={(e) => change(li, si, { phone: e.target.value })}
                             />
-                          </label>
-                        )}
-                        {!slot.idFiles.length && !canUpload && <span className="text-slate-300">—</span>}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
+                          </td>
+                          <td className={td}>
+                            <input
+                              inputMode="numeric"
+                              maxLength={14}
+                              className={`${input} min-w-[120px] font-mono`}
+                              placeholder={slot.aadhaarLast4 ? `XXXX XXXX ${slot.aadhaarLast4}` : "Aadhaar no."}
+                              aria-label={`Aadhaar, room ${l.roomNumber} row ${si + 1}`}
+                              disabled={!canEdit}
+                              value={slot.aadhaar}
+                              onChange={(e) => change(li, si, { aadhaar: e.target.value })}
+                            />
+                          </td>
+                          <td className={`${td} w-[150px]`}>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {slot.idFiles.length > 0 &&
+                                (canView && slot._id ? (
+                                  slot.idFiles.map((_, i) => (
+                                    <a
+                                      key={i}
+                                      href={`/api/bookings/${b._id}/guests/${slot._id}/files/${i}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="no-print inline-flex items-center gap-1 font-semibold text-emerald-700 hover:underline"
+                                    >
+                                      <Download className="w-3 h-3" /> ID {i + 1}
+                                    </a>
+                                  ))
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-emerald-700">
+                                    <CheckCircle2 className="w-3 h-3" /> {slot.idFiles.length} on file
+                                  </span>
+                                ))}
+                              {canUpload && (
+                                <label
+                                  className={`no-print inline-flex cursor-pointer items-center gap-1 h-7 px-2 rounded-md border border-slate-300 bg-white text-[11px] font-bold text-slate-600 hover:border-brand hover:text-brand ${uploading ? "pointer-events-none opacity-60" : ""}`}
+                                  title="Aadhaar / ID: JPG, PNG or PDF, max 4 MB each"
+                                >
+                                  {uploading === key ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Paperclip className="w-3.5 h-3.5" />}
+                                  {slot.idFiles.length ? "Add" : "ID"}
+                                  <input
+                                    type="file"
+                                    multiple
+                                    accept={ID_FILE_ACCEPT}
+                                    className="sr-only"
+                                    aria-label={`ID, room ${l.roomNumber} row ${si + 1}`}
+                                    onChange={(e) => {
+                                      void onUpload(li, si, Array.from(e.target.files ?? []));
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  : []),
+              ];
+            })}
           </tbody>
         </table>
       </div>
