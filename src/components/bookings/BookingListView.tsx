@@ -9,7 +9,7 @@ import { RowActions } from "@/components/table/RowActions";
 import type { Column, FilterConfig } from "@/components/table/types";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { BOOKING_STATUS, MEAL_PLAN_CODES, toOptions, type BookingStatus } from "@/lib/constants";
-import { formatDateTime, formatDay, formatINR } from "@/lib/format";
+import { formatDateTime, formatDay, formatINR, paxLabel } from "@/lib/format";
 import { isEarlyCheckIn, isLateCheckOut, timeLabel } from "@/lib/stayTimes";
 import type { Booking } from "@/lib/hotelTypes";
 import { canBooking, deleteBlocker } from "@/lib/bookingAccess";
@@ -163,7 +163,7 @@ export function BookingListView({ data, hotelOptions, agentOnly, itemName = "boo
               {formatDay(r.checkIn)} → {formatDay(r.checkOut)}
             </span>
             <span className="text-[10.5px] text-slate-400">
-              {r.nights} night{r.nights > 1 ? "s" : ""} · {r.adults}A{r.children ? ` ${r.children}C` : ""} · ETA{" "}
+              {r.nights} night{r.nights > 1 ? "s" : ""} · {paxLabel(r.adults, r.children)} · ETA{" "}
               {timeLabel(r.arrivalTime || r.hotel?.checkInTime || "12:00")}
             </span>
           </span>

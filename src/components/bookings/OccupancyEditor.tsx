@@ -4,7 +4,7 @@ import { getIn, useFormikContext } from "formik";
 import { AlertTriangle, BedSingle, Paperclip, RotateCcw, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { MealPlan } from "@/lib/constants";
-import { formatINR } from "@/lib/format";
+import { capacityLabel, formatINR } from "@/lib/format";
 import type { AvailabilityType } from "@/lib/hotelTypes";
 import { capacityProblem } from "@/lib/rooming";
 import type { BookingInput } from "@/lib/validation/booking.schema";
@@ -142,7 +142,7 @@ export function OccupancyEditor({
                       <span className="text-slate-400"> · {t?.name}</span>
                       {t && (
                         <span className="block text-[10px] text-slate-400">
-                          max {t.maxAdults}A + {t.maxChildren ?? 2}C + {t.maxExtraBeds ?? 1} extra bed
+                          max {capacityLabel(t.maxAdults, t.maxChildren ?? 2, t.maxExtraBeds ?? 1)}
                         </span>
                       )}
                     </td>

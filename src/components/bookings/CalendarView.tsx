@@ -7,7 +7,7 @@ import { useSession } from "@/components/providers/SessionProvider";
 import { useListParams } from "@/hooks/useListParams";
 import { canBooking } from "@/lib/bookingAccess";
 import { BOOKING_STATUS } from "@/lib/constants";
-import { formatDay } from "@/lib/format";
+import { formatDay, paxLabel } from "@/lib/format";
 import type { Option } from "@/lib/types";
 import type { CalendarDay, DayRoom } from "@/server/services/booking/calendar";
 import { BOOKING_BASE } from "./bookingConfig";
@@ -212,8 +212,7 @@ function DayPanel({ hotel, day, rooms, today, canBook, canAgent, summary }: { ho
                     {r.booking.guest}
                   </Link>
                   <span className="block text-[10.5px] text-slate-500">
-                    {r.booking.bookingNo} · {BOOKING_STATUS[r.booking.status]} · {r.booking.source === "agent" ? "Agent" : "Walk-in"} · {r.booking.adults}A
-                    {r.booking.children ? ` ${r.booking.children}C` : ""}
+                    {r.booking.bookingNo} · {BOOKING_STATUS[r.booking.status]} · {r.booking.source === "agent" ? "Agent" : "Walk-in"} · {paxLabel(r.booking.adults, r.booking.children)}
                   </span>
                   <span className="block text-[10.5px] text-slate-400">
                     {formatDay(r.booking.checkIn)} → {formatDay(r.booking.checkOut)}

@@ -8,7 +8,7 @@ import { DetailCard, DetailItem, DetailSection } from "@/components/ui/DetailCar
 import { PageHeader } from "@/components/ui/PageHeader";
 import { agentBookingsOnly, canBooking, canListBookings } from "@/lib/bookingAccess";
 import { MEAL_PLANS, PAYMENT_MODES, gstRateFor } from "@/lib/constants";
-import { formatDateTime, formatDay, formatINR, toDayString } from "@/lib/format";
+import { formatDateTime, formatDay, formatINR, paxLabel, toDayString } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { requireUser } from "@/server/auth/session";
 import { parseListQuery } from "@/server/http/query";
@@ -162,7 +162,7 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
             }
           />
           <DetailItem label="Hotel Times" value={`In ${timeLabel(b.hotel?.checkInTime || "12:00")} · Out ${timeLabel(b.hotel?.checkOutTime || "11:00")}`} />
-          <DetailItem label="Nights / Guests" value={`${b.nights} night(s) · ${b.adults} adult(s)${b.children ? `, ${b.children} child` : ""}`} />
+          <DetailItem label="Nights / Guests" value={`${b.nights} night${b.nights === 1 ? "" : "s"} · ${paxLabel(b.adults, b.children)}`} />
           <DetailItem label="Meal Plan" value={MEAL_PLANS[b.mealPlan].label} />
           {b.perHeadRate ? (
             <DetailItem
@@ -174,13 +174,11 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
           {b.source === "agent" && <DetailItem label="Bill To" value={b.billTo === "agent" ? "Agent credit account" : "Guest"} />}
         </DetailSection>
 
-        <DetailSection title="Contact (Lead Guest)">
-          <DetailItem label="Name" value={b.guest.name} />
-          <DetailItem label="Phone" value={b.guest.phone} />
-          <DetailItem label="Address" value={b.guest.address} />
-          {b.guest.idFiles.length > 0 && (
+        {/* Guests (names, phones, IDs) are in the Rooming List; only older bookings kept an ID on the booking itself */}
+        {b.guest.idFiles.length > 0 && (
+          <DetailSection title="ID Proof (older booking)">
             <DetailItem
-              label="ID Proof (booking)"
+              label="Files"
               value={
                 canSeeIds ? (
                   <span className="flex flex-wrap gap-2 no-print">
@@ -195,8 +193,8 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                 )
               }
             />
-          )}
-        </DetailSection>
+          </DetailSection>
+        )}
 
         <RoomingList booking={b} />
 
@@ -221,7 +219,7 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                       <td className="px-3 py-2 border-r border-line font-mono font-bold">{r.roomNumber}</td>
                       <td className="px-3 py-2 border-r border-line">{r.roomTypeName}</td>
                       <td className="px-3 py-2 border-r border-line whitespace-nowrap">
-                        {r.adults}A{r.children ? ` + ${r.children}C` : ""}
+                        {paxLabel(r.adults, r.children)}
                       </td>
                       <td className="px-3 py-2 border-r border-line text-right tabular-nums">{formatINR(r.ratePerNight)}</td>
                       <td className="px-3 py-2 border-r border-line text-right tabular-nums">{r.extraBeds ? `${r.extraBeds} × ${formatINR(r.extraBedRate)}` : "—"}</td>

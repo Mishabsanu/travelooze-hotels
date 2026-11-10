@@ -47,3 +47,17 @@ export function formatDay(value?: string | Date | null): string {
 
 /** "2026-11-09" for <input type="date"> */
 export const toDayString = (d: Date | string) => new Date(d).toISOString().slice(0, 10);
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "2 Adults", "2 Adults + 1 Child" (never "2A 1C") */
+export function paxLabel(adults: number, children = 0): string {
+  return children ? `${plural(adults, "Adult", "Adults")} + ${plural(children, "Child", "Children")}` : plural(adults, "Adult", "Adults");
+}
+
+/** Room type capacity: "2 Adults + 2 Children + 1 Extra Bed" */
+export function capacityLabel(maxAdults: number, maxChildren = 2, maxExtraBeds = 1): string {
+  return [plural(maxAdults, "Adult", "Adults"), maxChildren ? plural(maxChildren, "Child", "Children") : "", maxExtraBeds ? plural(maxExtraBeds, "Extra Bed", "Extra Beds") : ""]
+    .filter(Boolean)
+    .join(" + ");
+}

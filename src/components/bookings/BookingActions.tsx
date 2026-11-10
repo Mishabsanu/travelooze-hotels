@@ -28,7 +28,7 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
   const router = useRouter();
   // Opened from the bookings list with ?do=checkin / checkout / pay: start with that pop-up
   const [dialog, setDialog] = useState<Dialog>(() => {
-    if (autoOpen === "checkin" && b.status === "confirmed" && b.checkIn.slice(0, 10) <= today && b.idStatus.ready) return "checkin";
+    if (autoOpen === "checkin" && b.status === "confirmed" && b.checkIn.slice(0, 10) <= today) return "checkin";
     if (autoOpen === "checkout" && b.status === "checked_in") return "checkout";
     if (autoOpen === "pay" && b.status !== "cancelled" && b.balance > 0) return "pay";
     if (autoOpen === "edit" && (b.status === "confirmed" || b.status === "checked_in") && canBooking(user, b.source, "update")) return "edit";
@@ -36,11 +36,6 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
   });
   useEffect(() => {
     if (!autoOpen) return;
-    // Check-in blocked by missing IDs: say why and jump to the rooming list
-    if (autoOpen === "checkin" && b.status === "confirmed" && !b.idStatus.ready) {
-      toast.warning(`Check-in needs every adult's name and ID first (${b.idStatus.adultsWithId} of ${b.idStatus.adultsExpected} done). Add them in the Rooming List.`);
-      document.getElementById("rooming-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
     // Drop ?do= so a refresh does not open it again
     router.replace(window.location.pathname, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,11 +93,7 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
         <Button
           icon={<LogIn className="w-4 h-4" />}
           loading={busy && dialog === null}
-          onClick={() =>
-            b.idStatus.ready
-              ? setDialog("checkin")
-              : toast.warning(`Every adult needs a name and an ID first (${b.idStatus.adultsWithId} of ${b.idStatus.adultsExpected}). See the Rooming List below.`)
-          }
+          onClick={() => setDialog("checkin")}
         >
           Check In
         </Button>

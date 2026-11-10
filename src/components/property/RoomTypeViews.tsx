@@ -12,7 +12,7 @@ import { STATUS_FILTER, type Column } from "@/components/table/types";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { useApiSubmit } from "@/hooks/useApiSubmit";
 import { MEAL_PLANS, MEAL_PLAN_CODES } from "@/lib/constants";
-import { formatINR } from "@/lib/format";
+import { capacityLabel, formatINR } from "@/lib/format";
 import type { RoomType } from "@/lib/hotelTypes";
 import type { Option, Paginated } from "@/lib/types";
 import { emptyRoomType, roomTypeSchema, type RoomTypeInput } from "@/lib/validation/hotel.schema";
@@ -34,7 +34,7 @@ export function RoomTypeListView({ data, hotelOptions }: { data: Paginated<RoomT
         key: "maxAdults",
         label: "Capacity",
         align: "center",
-        render: (r) => `${r.maxAdults}A + ${r.maxChildren ?? 2}C + ${r.maxExtraBeds ?? 1} EB`,
+        render: (r) => capacityLabel(r.maxAdults, r.maxChildren ?? 2, r.maxExtraBeds ?? 1),
       },
       {
         key: "extraBedRates",

@@ -17,6 +17,7 @@ import type { SessionUser } from "@/lib/types";
 import { cancelSchema, optionalTime, paymentSchema } from "@/lib/validation/booking.schema";
 import { optionalText, requiredPhone, requiredText } from "@/lib/validation/common";
 import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi";
+import { CheckInForm } from "./CheckInForm";
 
 export type Dialog = null | "pay" | "id" | "cancel" | "edit" | "checkout" | "checkin";
 
@@ -108,22 +109,15 @@ export default function BookingDialogs({ b, user, dialog, setDialog, busy, arriv
       </Modal>
 
       {/* Check in */}
-      <Modal open={dialog === "checkin"} onClose={() => setDialog(null)} title="Check In Guest" subtitle={`${b.guest.name} · Room ${b.rooms.map((r) => r.roomNumber).join(", ")}`} icon={<LogIn className="w-4 h-4" />} size="sm">
-        <Formik initialValues={{ at: toIstLocal() }} onSubmit={(v) => run(() => bookingApi.checkIn(b._id, v.at), "Guest checked in")}>
-          {({ values }) => (
-            <Form className="space-y-3 text-xs text-slate-600">
-              <p>
-                Expected arrival <b>{timeLabel(b.arrivalTime || b.hotel?.checkInTime || "12:00")}</b> · hotel check-in time{" "}
-                <b>{timeLabel(b.hotel?.checkInTime || "12:00")}</b>
-              </p>
-              <TextField name="at" label="Actual Check-in Time" type="datetime-local" max={toIstLocal()} required hint="Change it if the guest arrived earlier" />
-              {earlyNote(b.checkIn, b.hotel?.checkInTime, values.at)}
-              <Button type="submit" className="w-full" loading={busy}>
-                Confirm Check In
-              </Button>
-            </Form>
-          )}
-        </Formik>
+      <Modal
+        open={dialog === "checkin"}
+        onClose={() => setDialog(null)}
+        title="Check In"
+        subtitle={`${b.bookingNo} · Room ${b.rooms.map((r) => r.roomNumber).join(", ")} · fill every adult's name and ID`}
+        icon={<LogIn className="w-4 h-4" />}
+        size="lg"
+      >
+        <CheckInForm b={b} busy={busy} run={run} />
       </Modal>
 
       {/* Check out */}
@@ -211,12 +205,6 @@ export default function BookingDialogs({ b, user, dialog, setDialog, busy, arriv
 }
 
 /** Hint under the time field: early check-in compared with the hotel's standard time. */
-function earlyNote(day: string, standard: string | undefined, at: string) {
-  if (!at) return null;
-  return parseIstLocal(at) < stayMoment(day, standard || "12:00") ? (
-    <p className="text-amber-700 font-semibold">Early check-in (before {timeLabel(standard || "12:00")} on arrival day)</p>
-  ) : null;
-}
 
 /** Hint under the time field: late check-out compared with the hotel's standard time. */
 function lateNote(day: string, standard: string | undefined, at: string) {

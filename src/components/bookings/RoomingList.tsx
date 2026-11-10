@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { Modal } from "@/components/ui/Modal";
 import { canBooking } from "@/lib/bookingAccess";
-import { formatINR } from "@/lib/format";
+import { formatINR, paxLabel } from "@/lib/format";
 import type { Booking, BookingGuest } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
 import { ApiError } from "@/services/apiClient";
@@ -124,7 +124,7 @@ export function RoomingList({ booking: b }: { booking: Booking }) {
                     <td rowSpan={rows.length} className={`${td} align-top bg-white`}>
                       <span className="font-mono font-bold text-slate-900">{r.roomNumber}</span> <span className="text-slate-400">· {r.roomTypeName}</span>
                       <span className="block text-[10.5px] text-slate-500">
-                        {r.adults}A{r.children ? ` + ${r.children}C` : ""}
+                        {paxLabel(r.adults, r.children)}
                         {r.extraBeds ? ` · ${r.extraBeds} extra bed (${formatINR(r.extraBedRate)}/night)` : ""}
                       </span>
                     </td>

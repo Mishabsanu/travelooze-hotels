@@ -44,7 +44,14 @@ export async function checkInBooking(id: string, user: SessionUser, at?: string)
   const { doc, view } = await load(id, user);
   if (doc.status !== "confirmed") throw new AppError("Only confirmed bookings can be checked in", 409);
   if (doc.checkIn > todayIST()) throw new AppError("This guest is arriving on a later date", 409);
-  if (!doc.guest.phone?.trim()) throw new AppError("Add the guest's phone number first (Edit Guest)", 409);
+  const firstAdult = doc.rooms.flatMap((l) => l.guests ?? []).find((g) => g.type === "adult" && g.name?.trim());
+  if (!doc.guest.phone?.trim()) {
+    const phone = doc.rooms.flatMap((l) => l.guests ?? []).find((g) => g.phone?.trim())?.phone;
+    if (!phone) throw new AppError("Enter the main guest's phone number", 409);
+    doc.guest.phone = phone;
+  }
+  // Booked without a name: the list shows the main guest from now on
+  if (doc.guest.name === "Walk-in guest" && firstAdult) doc.guest.name = firstAdult.name;
   const ids = computeIdStatus(view);
   if (!ids.ready) {
     throw new AppError(`Every adult needs a name and an ID before check-in (${ids.adultsWithId} of ${ids.adultsExpected} done). ${ids.missing.slice(0, 3).join("; ")}`, 409);
