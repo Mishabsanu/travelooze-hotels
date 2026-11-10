@@ -3,7 +3,7 @@ import { optionalTime } from "@/lib/validation/booking.schema";
 import { optionalText, requiredPhone, requiredText } from "@/lib/validation/common";
 import { apiHandler, readBody } from "@/server/http/handler";
 import { getBooking } from "@/server/services/booking/booking.service";
-import { updateGuest } from "@/server/services/booking/bookingActions";
+import { deleteBooking, updateGuest } from "@/server/services/booking/bookingActions";
 
 const guestSchema = Yup.object({
   guestName: requiredText("Guest name", 100),
@@ -22,3 +22,8 @@ export const GET = apiHandler<{ id: string }>("authenticated", async ({ params, 
 export const PUT = apiHandler<{ id: string }>("authenticated", async ({ req, params, user }) =>
   updateGuest(params.id, await readBody(req, guestSchema), user)
 );
+
+export const DELETE = apiHandler<{ id: string }>("authenticated", async ({ params, user }) => {
+  await deleteBooking(params.id, user);
+  return { ok: true };
+});

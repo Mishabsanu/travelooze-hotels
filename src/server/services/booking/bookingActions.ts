@@ -146,3 +146,17 @@ export async function addIdFiles(id: string, files: File[], aadhaar: string, use
   await doc.save();
   return getBooking(id, user);
 }
+
+/**
+ * Deletes a booking for good (a mistake / duplicate). Frees its rooms. Only bookings with no money and no
+ * invoice on them that the guest has not stayed in; everything else is cancelled instead, to keep the accounts right.
+ */
+export async function deleteBooking(id: string, user: SessionUser): Promise<void> {
+  const { doc } = await load(id, user);
+  if (!canBooking(user, doc.source, "delete")) throw forbid("delete this booking");
+  if (doc.status === "checked_in" || doc.status === "checked_out") throw new AppError("The guest has stayed: this booking cannot be deleted", 409);
+  if (doc.invoiceNo) throw new AppError(`Invoice ${doc.invoiceNo} is issued for this booking: it cannot be deleted`, 409);
+  if ((doc.payments ?? []).length) throw new AppError("Payments are recorded on this booking: cancel it instead of deleting", 409);
+  await releaseRoomNights(doc._id);
+  await BookingModel.deleteOne({ _id: doc._id });
+}

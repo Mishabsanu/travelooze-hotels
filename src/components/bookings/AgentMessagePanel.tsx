@@ -25,12 +25,10 @@ MEAL PLAN:
 PER HEAD: `;
 
 export interface GroupPlan {
-  /** Rooms the agent asked for */
+  /** Rooms the agent asked for (0 = work it out from the pax) */
   rooms: number;
   /** People per room (2 double, 3 triple, 4 quad) */
   perRoom: number;
-  /** Everyone staying, complimentary included */
-  guests: number;
 }
 
 /**
@@ -79,6 +77,11 @@ export function AgentMessagePanel({ hotelOptions, today, onPlan }: { hotelOption
       got.push(`₹${m.perHead} per head`);
     }
     if (m.focPax !== undefined) next.focPax = m.focPax;
+    // Pax = everyone staying (paying + complimentary)
+    if (m.pax) {
+      next.adults = m.pax + (m.focPax ?? 0);
+      next.children = 0;
+    }
     if (m.pax) got.push(`${m.pax} pax${m.focPax ? ` + ${m.focPax} complimentary` : ""}`);
     if (m.phone) next.phone = m.phone;
     if (m.rooms) got.push(`${m.rooms} rooms${m.perRoom ? `, ${m.perRoom} per room` : ""}`);
@@ -86,7 +89,7 @@ export function AgentMessagePanel({ hotelOptions, today, onPlan }: { hotelOption
     if (!m.phone) missing.push("Phone (optional: the agent's phone is used)");
 
     void setValues(next);
-    onPlan({ rooms: m.rooms ?? 0, perRoom: m.perRoom ?? 2, guests: (m.pax ?? 0) + (m.focPax ?? 0) });
+    onPlan({ rooms: m.rooms ?? 0, perRoom: m.perRoom ?? 2 });
     setResult({ got, missing });
     if (got.length) toast.success("Form filled from the message. Check the details, then pick the rooms.");
     else toast.warning("Could not read that message. Fill the form by hand.");

@@ -1,10 +1,11 @@
 "use client";
 
-import { Eye, LogIn, LogOut, Pencil, Wallet } from "lucide-react";
+import { Eye, FileDown, LogIn, LogOut, Pencil, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { useSession } from "@/components/providers/SessionProvider";
 import { DataTable } from "@/components/table/DataTable";
+import { RowActions } from "@/components/table/RowActions";
 import type { Column, FilterConfig } from "@/components/table/types";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { BOOKING_STATUS, MEAL_PLAN_CODES, toOptions, type BookingStatus } from "@/lib/constants";
@@ -87,9 +88,26 @@ function BookingRowActions({ b, user, today }: { b: Booking; user: SessionUser; 
           <Pencil className="w-3.5 h-3.5" />
         </Link>
       )}
+      {b.status !== "cancelled" && (
+        <Link
+          href={`${href}/invoice?download=1`}
+          title={b.invoiceNo ? `Download invoice ${b.invoiceNo}` : "Download proforma invoice"}
+          aria-label="Invoice"
+          className="p-1 rounded text-slate-400 hover:text-brand hover:bg-brand-light"
+        >
+          <FileDown className="w-3.5 h-3.5" />
+        </Link>
+      )}
       <Link href={href} title="Open booking" className="p-1 rounded text-slate-400 hover:text-brand hover:bg-brand-light">
         <Eye className="w-3.5 h-3.5" />
       </Link>
+      {/* Delete only mistakes / duplicates: no money, no invoice, guest not stayed (others: Cancel) */}
+      {(b.status === "confirmed" || b.status === "cancelled" || b.status === "no_show") &&
+        !b.invoiceNo &&
+        b.paid === 0 &&
+        canBooking(user, b.source, "delete") && (
+          <RowActions entityLabel="Booking" itemName={`${b.bookingNo} – ${b.guest.name}`} deleteUrl={`/api/bookings/${b._id}`} />
+        )}
     </div>
   );
 }

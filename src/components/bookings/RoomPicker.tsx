@@ -10,7 +10,6 @@ import type { AvailabilityType } from "@/lib/hotelTypes";
 import type { BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi } from "@/services/bookingApi";
-import type { GroupPlan } from "./AgentMessagePanel";
 
 /**
  * Loads free rooms whenever hotel / dates change and lets the user tick rooms.
@@ -18,12 +17,18 @@ import type { GroupPlan } from "./AgentMessagePanel";
  */
 export function RoomPicker({
   onTypes,
-  plan,
-  setPlan,
+  perRoom,
+  setPerRoom,
+  pickRequest,
+  onPickDone,
 }: {
   onTypes: (types: AvailabilityType[], nights: number) => void;
-  plan?: GroupPlan;
-  setPlan?: (p: GroupPlan) => void;
+  /** Guests per room (2 double, 3 triple, 4 quad) used to work out how many rooms the pax needs */
+  perRoom: number;
+  setPerRoom: (n: number) => void;
+  /** Rooms to tick automatically once the free rooms are loaded (from a pasted agent message) */
+  pickRequest: number;
+  onPickDone: () => void;
 }) {
   const { values, setFieldValue, errors, touched, submitCount } = useFormikContext<BookingInput>();
   const { hotel, checkIn, checkOut } = values;
@@ -65,15 +70,24 @@ export function RoomPicker({
     else next.add(id);
     void setFieldValue("rooms", [...next]);
   };
-  /** Group bookings: tick the first N free rooms, rooms that can hold the sharing (with extra beds) first */
-  const autoPick = () => {
-    const want = plan?.rooms ?? 0;
+  const pax = Math.max(0, Math.floor(Number(values.adults) || 0)) + Math.max(0, Math.floor(Number(values.children) || 0));
+  const needed = pax > 0 ? Math.ceil(pax / Math.max(1, perRoom)) : 0;
+  /** Tick the first N free rooms, rooms that can hold the sharing (with extra beds) first */
+  const autoPick = (want: number, list: AvailabilityType[] = types) => {
     if (want < 1) return;
-    const fits = (t: AvailabilityType) => t.maxAdults + (t.maxExtraBeds ?? 1) >= (plan?.perRoom ?? 1);
-    const ordered = [...types.filter(fits), ...types.filter((t) => !fits(t))].flatMap((t) => t.rooms.map((r) => r._id));
-    if (ordered.length < want) toast.warning(`Only ${ordered.length} room(s) free for these dates, ${want} asked`);
+    const fits = (t: AvailabilityType) => t.maxAdults + (t.maxExtraBeds ?? 1) >= perRoom;
+    const ordered = [...list.filter(fits), ...list.filter((t) => !fits(t))].flatMap((t) => t.rooms.map((r) => r._id));
+    if (ordered.length < want) toast.warning(`Only ${ordered.length} room(s) free for these dates, ${want} needed`);
     void setFieldValue("rooms", ordered.slice(0, want));
   };
+  // A pasted agent message asked for N rooms: pick them as soon as the free rooms are known
+  useEffect(() => {
+    if (pickRequest > 0 && types.length) {
+      autoPick(pickRequest);
+      onPickDone();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickRequest, types]);
   const error = (touched.rooms || submitCount > 0) && typeof errors.rooms === "string" ? errors.rooms : undefined;
   const mealPlan = values.mealPlan as MealPlan;
 
@@ -90,28 +104,37 @@ export function RoomPicker({
       )}
       {!hotel && <p className="text-xs text-slate-500">Select a hotel to see free rooms.</p>}
 
-      {plan && setPlan && types.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+      {types.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand/30 bg-brand-light/50 px-3 py-2 text-xs text-slate-700">
           <Wand2 className="w-3.5 h-3.5 text-brand" />
-          <span>Group: pick</span>
-          <input
-            type="number"
-            min={1}
-            aria-label="Number of rooms to pick"
-            value={plan.rooms || ""}
-            onChange={(e) => setPlan({ ...plan, rooms: Math.max(0, Number(e.target.value) || 0) })}
-            className="w-16 h-8 px-2 text-center bg-slate-50 border border-slate-300 rounded-md focus:border-brand focus:outline-none"
-          />
-          <span>free rooms</span>
+          <b>{pax || "—"} pax</b>
+          <span>at</span>
+          <select
+            aria-label="Guests per room"
+            value={perRoom}
+            onChange={(e) => setPerRoom(Number(e.target.value))}
+            className="h-8 px-2 bg-white border border-slate-300 rounded-md focus:border-brand focus:outline-none"
+          >
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <option key={n} value={n}>
+                {n} per room{n === 2 ? " (double)" : n === 3 ? " (triple)" : n === 4 ? " (quad)" : ""}
+              </option>
+            ))}
+          </select>
+          <span>
+            = <b>{needed}</b> room{needed === 1 ? "" : "s"}
+          </span>
           <button
             type="button"
-            onClick={autoPick}
-            disabled={!plan.rooms}
-            className="h-8 px-3 rounded-lg border border-brand text-brand font-bold hover:bg-brand-light disabled:opacity-40"
+            onClick={() => autoPick(needed)}
+            disabled={!needed}
+            className="h-8 px-3 rounded-lg bg-brand text-white font-bold hover:bg-brand-dark disabled:opacity-40"
           >
-            Pick Rooms
+            Pick {needed || ""} Room{needed === 1 ? "" : "s"}
           </button>
-          <span className="text-slate-400">{selected.size} selected · {types.reduce((s, t) => s + t.rooms.length, 0)} free</span>
+          <span className="text-slate-500">
+            or tap rooms below · {selected.size} selected · {types.reduce((s, t) => s + t.rooms.length, 0)} free
+          </span>
         </div>
       )}
 

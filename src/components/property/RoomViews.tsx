@@ -96,6 +96,7 @@ export function RoomListView({ data, hotelOptions, typeOptions }: { data: Pagina
         <RowActions
           entityLabel={ROOM_UI.label}
           itemName={`Room ${row.number} – ${row.hotel?.name ?? ""}`}
+          viewHref={`${ROOM_UI.basePath}/${row._id}`}
           editHref={canEdit ? `${ROOM_UI.basePath}/${row._id}/edit` : undefined}
           deleteUrl={canDelete ? `${ROOM_UI.apiBase}/${row._id}` : undefined}
         />

@@ -1,7 +1,7 @@
 "use client";
 
 import { FileDown, ImageDown } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { downloadElementAsImage, downloadElementAsPdf } from "./pdf";
 
@@ -11,11 +11,14 @@ interface DownloadPdfButtonProps {
   fileName: string;
   label?: string;
   orientation?: "portrait" | "landscape";
+  /** Start the download as soon as the page opens (once) */
+  autoDownload?: boolean;
 }
 
 /** Downloads the on-screen document as a branded A4 PDF (same layout as Print). */
-export function DownloadPdfButton({ target, fileName, label = "Download PDF", orientation }: DownloadPdfButtonProps) {
+export function DownloadPdfButton({ target, fileName, label = "Download PDF", orientation, autoDownload }: DownloadPdfButtonProps) {
   const [busy, setBusy] = useState(false);
+  const started = useRef(false);
 
   const handleClick = async () => {
     const element = document.querySelector<HTMLElement>(target);
@@ -35,6 +38,15 @@ export function DownloadPdfButton({ target, fileName, label = "Download PDF", or
       setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (!autoDownload || started.current) return;
+    started.current = true;
+    // Let fonts / images settle before capturing the sheet
+    const t = setTimeout(() => void handleClick(), 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDownload]);
 
   return (
     <button

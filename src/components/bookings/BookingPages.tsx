@@ -305,13 +305,13 @@ function BillRow({ label, value, strong, tone = "" }: { label: string; value: st
   );
 }
 
-export async function InvoicePage({ params }: { params: IdParams }) {
+export async function InvoicePage({ params, searchParams }: { params: IdParams; searchParams?: SearchParams }) {
   const user = await requireUser();
   if (!canListBookings(user)) return <AccessDenied />;
   const b = await orNotFound(getBooking((await params).id, user));
   return (
     <div className="space-y-4">
-      <InvoiceToolbar b={b} />
+      <InvoiceToolbar b={b} autoDownload={first((await searchParams)?.download) === "1"} />
       <InvoiceSheet b={b} />
     </div>
   );

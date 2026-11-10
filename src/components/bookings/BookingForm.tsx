@@ -1,7 +1,7 @@
 "use client";
 
 import { Form, Formik } from "formik";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, ChevronDown, ChevronUp, MessageSquareText } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { FormCard, FormSection } from "@/components/forms/FormCard";
@@ -16,7 +16,7 @@ import type { Option } from "@/lib/types";
 import { bookingSchema, type BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi, ID_FILE_ACCEPT, idFileProblem } from "@/services/bookingApi";
-import { AgentMessagePanel, type GroupPlan } from "./AgentMessagePanel";
+import { AgentMessagePanel } from "./AgentMessagePanel";
 import { DiscountFields } from "./DiscountFields";
 import { OccupancyEditor } from "./OccupancyEditor";
 import { RoomPicker } from "./RoomPicker";
@@ -42,13 +42,22 @@ export interface BookingFormProps {
   backHref: string;
 }
 
+const toggleBtn = "md:col-span-2 lg:col-span-3 inline-flex items-center gap-1 justify-self-start text-xs font-bold text-brand hover:underline";
+
+/**
+ * One booking form for walk-ins and agents, kept short: stay + pax → rooms (picked and filled from the pax)
+ * → guest → price. Less used fields are folded away under "More".
+ */
 export function BookingForm(p: BookingFormProps) {
   const [types, setTypes] = useState<AvailabilityType[]>([]);
   const [nights, setNights] = useState(0);
   const [files, setFiles] = useState<File[]>([]);
   const [checkInNow, setCheckInNow] = useState(p.source === "walkin" && (p.preset?.checkIn ?? p.today) === p.today);
   const isAgent = p.source === "agent";
-  const [plan, setPlan] = useState<GroupPlan>({ rooms: 0, perRoom: 2, guests: 0 });
+  const [perRoom, setPerRoom] = useState(2);
+  const [pickRequest, setPickRequest] = useState(0);
+  const [showPaste, setShowPaste] = useState(false);
+  const [moreGuest, setMoreGuest] = useState(false);
 
   const initialValues: BookingInput = {
     source: p.source,
@@ -137,7 +146,7 @@ export function BookingForm(p: BookingFormProps) {
           <Form noValidate>
             <FormCard
               title={isAgent ? "New Agent Booking" : "New Walk-in Booking"}
-              description={isAgent ? "B2B booking at the agent's contract rate" : "Guest at the front desk"}
+              description={isAgent ? "Fill in, or paste the agent's WhatsApp message" : "Guest at the front desk"}
               badge={isAgent ? "B2B" : "Walk-in"}
               icon={<CalendarPlus className="w-4.5 h-4.5" />}
               backHref={p.backHref}
@@ -145,12 +154,31 @@ export function BookingForm(p: BookingFormProps) {
               submitting={isSubmitting}
             >
               {isAgent && (
-                <FormSection title="Agent Message" description="Got the booking on WhatsApp? Paste it here to fill the form, then check it and pick rooms.">
-                  <AgentMessagePanel hotelOptions={p.hotelOptions} today={p.today} onPlan={setPlan} />
-                </FormSection>
+                <div className="px-6 pt-5">
+                  <button
+                    type="button"
+                    onClick={() => setShowPaste((s) => !s)}
+                    className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-brand text-brand text-xs font-bold hover:bg-brand-light"
+                  >
+                    <MessageSquareText className="w-4 h-4" />
+                    {showPaste ? "Hide WhatsApp message" : "Paste WhatsApp Message"}
+                  </button>
+                  {showPaste && (
+                    <div className="mt-3 grid grid-cols-1">
+                      <AgentMessagePanel
+                        hotelOptions={p.hotelOptions}
+                        today={p.today}
+                        onPlan={(plan) => {
+                          setPerRoom(plan.perRoom);
+                          if (plan.rooms) setPickRequest(plan.rooms);
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               )}
 
-              <FormSection title="Stay">
+              <FormSection title="1 · Stay & Pax">
                 <SelectField name="hotel" label="Hotel" required placeholder="Select hotel" options={p.hotelOptions} />
                 <TextField
                   name="checkIn"
@@ -166,80 +194,44 @@ export function BookingForm(p: BookingFormProps) {
                 />
                 <TextField name="checkOut" label="Check-out" type="date" required min={values.checkIn} hint={nights ? `${nights} night${nights > 1 ? "s" : ""}` : undefined} />
                 <SelectField name="mealPlan" label="Meal Plan" required options={PLAN_OPTIONS} />
-                <TextField name="arrivalTime" label="Expected Arrival Time" type="time" hint="Blank = hotel standard" />
-                <TextField name="departureTime" label="Expected Departure Time" type="time" hint="Blank = hotel standard" />
+                <TextField name="adults" label="Pax (Adults)" type="number" min={1} step="1" required hint={isAgent ? "Everyone, incl. free guests" : undefined} />
+                <TextField name="children" label="Children" type="number" min={0} step="1" />
+                {isAgent && (
+                  <>
+                    <SearchSelectField name="agent" label="Agent" required placeholder="Select agent" options={p.agentOptions} searchPlaceholder="Search agents..." />
+                    <TextField name="agentRef" label="Agent Ref No." maxLength={60} placeholder="e.g. B2295 HN" />
+                    <SelectField
+                      name="billTo"
+                      label="Bill To"
+                      required
+                      options={[
+                        { value: "agent", label: "Agent (credit account)" },
+                        { value: "guest", label: "Guest pays at hotel" },
+                      ]}
+                    />
+                  </>
+                )}
               </FormSection>
 
-              {isAgent && (
-                <FormSection title="Agent & Rate" description="Room tariff gets the agent's contract discount. Per head = the group rate agreed in the message (extra beds included).">
-                  <SearchSelectField name="agent" label="Agent" required placeholder="Select agent" options={p.agentOptions} searchPlaceholder="Search agents..." />
-                  <TextField name="agentRef" label="Agent Voucher / Ref No." maxLength={60} />
-                  <SelectField
-                    name="billTo"
-                    label="Bill To"
-                    required
-                    options={[
-                      { value: "agent", label: "Agent (credit account)" },
-                      { value: "guest", label: "Guest pays at hotel" },
-                    ]}
-                  />
-                  <SelectField
-                    name="rateType"
-                    label="Rate Basis"
-                    required
-                    options={[
-                      { value: "room", label: "Room tariff (contract discount)" },
-                      { value: "per_head", label: "Per head (group / package)" },
-                    ]}
-                  />
-                  {perHead && (
-                    <>
-                      <TextField name="perHeadRate" label="Rate per Head / Night (₹)" type="number" min={0} step="1" required hint={`${values.mealPlan}, before GST`} />
-                      <TextField
-                        name="focPax"
-                        label="Complimentary (FOC) Guests"
-                        type="number"
-                        min={0}
-                        step="1"
-                      />
-                    </>
-                  )}
-                  {p.isSuperAdmin && (
-                    <label className="flex items-center gap-2 text-xs text-slate-600 self-end pb-2">
-                      <input
-                        type="checkbox"
-                        checked={values.overrideCredit}
-                        onChange={(e) => setFieldValue("overrideCredit", e.target.checked)}
-                        className="w-3.5 h-3.5 accent-brand"
-                      />
-                      Override credit limit (Super Admin)
-                    </label>
-                  )}
-                </FormSection>
-              )}
-
-              <FormSection title="Rooms" description="Only rooms free for every night of the stay are shown.">
+              <FormSection title="2 · Rooms" description="Pick rooms for the pax in one click, or tap rooms yourself. Guests are spread over the rooms automatically.">
                 <RoomPicker
                   onTypes={(t, n) => {
                     setTypes(t);
                     setNights(n);
                   }}
-                  plan={isAgent ? plan : undefined}
-                  setPlan={setPlan}
+                  perRoom={perRoom}
+                  setPerRoom={setPerRoom}
+                  pickRequest={pickRequest}
+                  onPickDone={() => setPickRequest(0)}
                 />
+                <OccupancyEditor types={types} />
               </FormSection>
 
-              <FormSection title="Occupancy & Guests" description="Adults, children and extra beds for each room. Capacity is checked per room type.">
-                <OccupancyEditor types={types} plan={isAgent ? plan : undefined} setPlan={setPlan} />
-              </FormSection>
-
-              <FormSection title="Lead Guest">
-                <TextField name="guestName" label="Guest Name" required maxLength={100} />
+              <FormSection title="3 · Guest">
+                <TextField name="guestName" label={isAgent ? "Guest / Group Name" : "Guest Name"} required maxLength={100} />
                 <TextField name="phone" label="Phone" required={!isAgent} placeholder="98XXXXXXXX" hint={isAgent ? "Blank = agent's phone" : undefined} />
-                <TextField name="aadhaar" label="Aadhaar Number" inputMode="numeric" maxLength={14} placeholder="XXXX XXXX XXXX" hint="Only last 4 digits are saved" />
-                <TextAreaField name="address" label="Address" className="md:col-span-2" rows={2} maxLength={300} />
                 {p.canUploadId && (
-                  <FormField label="Aadhaar / ID Proof" hint={isAgent ? "Optional now — can be added at check-in" : "Front & back, max 4 MB each"}>
+                  <FormField label="Aadhaar / ID Proof" hint={isAgent ? "Optional now" : "Front & back, max 4 MB each"}>
                     <input
                       type="file"
                       multiple
@@ -249,9 +241,49 @@ export function BookingForm(p: BookingFormProps) {
                     />
                   </FormField>
                 )}
+                <button type="button" className={toggleBtn} onClick={() => setMoreGuest((m) => !m)}>
+                  {moreGuest ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  {moreGuest ? "Less" : "More: Aadhaar no., address, arrival time, notes"}
+                </button>
+                {moreGuest && (
+                  <>
+                    <TextField name="aadhaar" label="Aadhaar Number" inputMode="numeric" maxLength={14} placeholder="XXXX XXXX XXXX" hint="Only last 4 digits are saved" />
+                    <TextField name="arrivalTime" label="Expected Arrival" type="time" hint="Blank = hotel standard" />
+                    <TextField name="departureTime" label="Expected Departure" type="time" hint="Blank = hotel standard" />
+                    <TextAreaField name="address" label="Address" className="md:col-span-2" rows={2} maxLength={300} />
+                    <TextAreaField name="notes" label="Notes" rows={2} maxLength={500} />
+                  </>
+                )}
               </FormSection>
 
-              <FormSection title="Payment & Summary">
+              <FormSection title="4 · Price & Payment">
+                {isAgent && (
+                  <FormField label="Rate" className="md:col-span-2 lg:col-span-3">
+                    <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5" role="radiogroup" aria-label="Rate basis">
+                      {[
+                        { v: "room", l: "Room rate" },
+                        { v: "per_head", l: "Per head (group)" },
+                      ].map((o) => (
+                        <button
+                          key={o.v}
+                          type="button"
+                          role="radio"
+                          aria-checked={values.rateType === o.v}
+                          onClick={() => setFieldValue("rateType", o.v)}
+                          className={`h-8 px-4 rounded-md text-xs font-bold ${values.rateType === o.v ? "bg-brand text-white" : "text-slate-600 hover:text-brand"}`}
+                        >
+                          {o.l}
+                        </button>
+                      ))}
+                    </div>
+                  </FormField>
+                )}
+                {perHead && (
+                  <>
+                    <TextField name="perHeadRate" label="Rate per Head / Night (₹)" type="number" min={0} step="1" required hint={`${values.mealPlan}, before GST`} />
+                    <TextField name="focPax" label="Free Guests (FOC)" type="number" min={0} step="1" />
+                  </>
+                )}
                 {canAdjust && (
                   <DiscountFields
                     gross={gross}
@@ -266,16 +298,25 @@ export function BookingForm(p: BookingFormProps) {
                 {p.canPay && (
                   <>
                     <TextField name="advance" label="Advance Received (₹)" type="number" min={0} step="1" />
-                    <SelectField name="advanceMode" label="Mode" options={MODE_OPTIONS} />
-                    <TextField name="advanceRef" label="UPI / Txn Ref" maxLength={60} />
+                    {Number(values.advance) > 0 && (
+                      <>
+                        <SelectField name="advanceMode" label="Mode" options={MODE_OPTIONS} />
+                        <TextField name="advanceRef" label="UPI / Txn Ref" maxLength={60} />
+                      </>
+                    )}
                   </>
                 )}
-                <TextAreaField name="notes" label="Notes" className="md:col-span-2" rows={2} maxLength={500} />
+                {isAgent && p.isSuperAdmin && (
+                  <label className="flex items-center gap-2 text-xs text-slate-600 self-end pb-2">
+                    <input type="checkbox" checked={values.overrideCredit} onChange={(e) => setFieldValue("overrideCredit", e.target.checked)} className="w-3.5 h-3.5 accent-brand" />
+                    Override credit limit (Super Admin)
+                  </label>
+                )}
 
                 <div className="md:col-span-2 lg:col-span-3 border border-line bg-white">
                   <table className="w-full text-xs">
                     <tbody className="divide-y divide-line">
-                      <SummaryRow k={`Rooms × nights`} v={`${values.rooms.length} × ${nights || 0}`} />
+                      <SummaryRow k="Rooms × nights" v={`${values.rooms.length} × ${nights || 0}`} />
                       {perHead && (
                         <SummaryRow
                           k="Per head × paying guests × nights"
@@ -284,7 +325,7 @@ export function BookingForm(p: BookingFormProps) {
                       )}
                       <SummaryRow k={perHead ? "Package charges" : "Room charges"} v={formatINR(price.roomCharges)} />
                       {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
-                      {price.discount > 0 && <SummaryRow k={`Discount (${discount}%)`} v={`− ${formatINR(price.discount)}`} />}
+                      {price.discount > 0 && <SummaryRow k={`Discount (${round2(discount)}%)`} v={`− ${formatINR(price.discount)}`} />}
                       <SummaryRow k="GST" v={formatINR(price.gstAmount)} />
                       <tr className="bg-brand-light">
                         <td className="px-3 py-2 font-bold text-brand uppercase tracking-wider text-[11px]">Total</td>

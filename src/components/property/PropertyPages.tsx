@@ -1,11 +1,11 @@
-import { Building2, Plus } from "lucide-react";
+import { BedDouble, Building2, DoorOpen, Plus } from "lucide-react";
 import Link from "next/link";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { DetailCard, DetailItem, DetailSection } from "@/components/ui/DetailCard";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { HOTEL_CATEGORIES } from "@/lib/constants";
-import { formatDateTime } from "@/lib/format";
+import { HOTEL_CATEGORIES, MEAL_PLANS, MEAL_PLAN_CODES, ROOM_STATUS } from "@/lib/constants";
+import { formatDateTime, formatDay, formatINR } from "@/lib/format";
 import { timeLabel } from "@/lib/stayTimes";
 import { can, type PermissionModule } from "@/lib/permissions";
 import { getPageAccess } from "@/server/auth/session";
@@ -147,7 +147,106 @@ export async function RoomTypeEditPage({ params }: { params: IdParams }) {
   return <RoomTypeForm initial={type} hotelOptions={hotelOptions} />;
 }
 
+export async function RoomTypeDetailPage({ params }: { params: IdParams }) {
+  const { user, allowed } = await getPageAccess("room_type", "view");
+  if (!allowed) return <AccessDenied />;
+  const t = await orNotFound(getRoomType((await params).id, user));
+  const short = (d: string) => formatDay(d).replace(/\s\d{4}$/, "");
+  return (
+    <DetailCard
+      title={t.name}
+      subtitle={t.hotel?.name ?? ""}
+      badge={<StatusBadge status={t.status} />}
+      icon={<BedDouble className="w-4.5 h-4.5" />}
+      backHref={ROOM_TYPE_UI.basePath}
+      editHref={can(user, "room_type", "update") ? `${ROOM_TYPE_UI.basePath}/${t._id}/edit` : undefined}
+    >
+      <DetailSection title="Room Type">
+        <DetailItem label="Hotel" value={t.hotel?.name} />
+        <DetailItem label="Name" value={t.name} />
+        <DetailItem label="Capacity" value={`${t.maxAdults} adults + ${t.maxChildren ?? 2} children + ${t.maxExtraBeds ?? 1} extra bed(s)`} />
+        <DetailItem
+          label="Rooms"
+          value={
+            can(user, "room", "view") ? (
+              <Link href={`/dashboard/property/rooms?roomType=${t._id}`} className="text-brand hover:underline">
+                {t.roomCount ?? "Open"} room(s)
+              </Link>
+            ) : (
+              String(t.roomCount ?? "—")
+            )
+          }
+        />
+      </DetailSection>
+      <DetailSection title="Normal Rates (per night, before GST)">
+        {MEAL_PLAN_CODES.map((c) => (
+          <DetailItem key={c} label={MEAL_PLANS[c].label} value={`${formatINR(t.rates?.[c])} · extra bed ${formatINR(t.extraBedRates?.[c] ?? 0)}`} />
+        ))}
+      </DetailSection>
+      <DetailSection title="Seasonal Rates">
+        {(t.seasons ?? []).length === 0 && <DetailItem label="Seasons" value="None: normal rates all year" />}
+        {(t.seasons ?? []).map((s) => (
+          <DetailItem
+            key={s._id ?? s.name}
+            label={`${s.name} · ${s.yearly ? `${short(s.from)} – ${short(s.to)} every year` : `${formatDay(s.from)} – ${formatDay(s.to)}`}`}
+            value={MEAL_PLAN_CODES.map((c) => `${c} ${s.rates?.[c] ? formatINR(s.rates[c]) : "normal"}`).join(" · ")}
+          />
+        ))}
+      </DetailSection>
+      <DetailSection title="Audit">
+        <DetailItem label="Created" value={formatDateTime(t.createdAt)} />
+        <DetailItem label="Last Updated" value={formatDateTime(t.updatedAt)} />
+      </DetailSection>
+    </DetailCard>
+  );
+}
+
 /* ───────────── Rooms ───────────── */
+
+export async function RoomDetailPage({ params }: { params: IdParams }) {
+  const { user, allowed } = await getPageAccess("room", "view");
+  if (!allowed) return <AccessDenied />;
+  const room = await orNotFound(getRoom((await params).id, user));
+  return (
+    <DetailCard
+      title={`Room ${room.number}`}
+      subtitle={`${room.hotel?.name ?? ""} · ${room.roomType?.name ?? ""}`}
+      badge={
+        <>
+          <Badge variant={room.housekeeping === "available" ? "success" : room.housekeeping === "maintenance" ? "danger" : "warning"}>{ROOM_STATUS[room.housekeeping]}</Badge>
+          <StatusBadge status={room.status} />
+        </>
+      }
+      icon={<DoorOpen className="w-4.5 h-4.5" />}
+      backHref={ROOM_UI.basePath}
+      editHref={can(user, "room", "update") ? `${ROOM_UI.basePath}/${room._id}/edit` : undefined}
+    >
+      <DetailSection title="Room">
+        <DetailItem label="Hotel" value={room.hotel?.name} />
+        <DetailItem label="Room Number" value={room.number} mono />
+        <DetailItem label="Floor" value={room.floor} />
+        <DetailItem
+          label="Room Type"
+          value={
+            room.roomType && can(user, "room_type", "view") ? (
+              <Link href={`${ROOM_TYPE_UI.basePath}/${room.roomType._id}`} className="text-brand hover:underline">
+                {room.roomType.name}
+              </Link>
+            ) : (
+              room.roomType?.name
+            )
+          }
+        />
+        <DetailItem label="Housekeeping" value={ROOM_STATUS[room.housekeeping]} />
+        <DetailItem label="Status" value={room.status === "active" ? "Active (sellable)" : "Inactive"} />
+      </DetailSection>
+      <DetailSection title="Audit">
+        <DetailItem label="Created" value={formatDateTime(room.createdAt)} />
+        <DetailItem label="Last Updated" value={formatDateTime(room.updatedAt)} />
+      </DetailSection>
+    </DetailCard>
+  );
+}
 
 export async function RoomListPage({ searchParams }: { searchParams: SearchParams }) {
   const { user, allowed } = await getPageAccess("room", "view");

@@ -80,6 +80,7 @@ export function RoomTypeListView({ data, hotelOptions }: { data: Paginated<RoomT
         <RowActions
           entityLabel={ROOM_TYPE_UI.label}
           itemName={`${row.name} – ${row.hotel?.name ?? ""}`}
+          viewHref={`${ROOM_TYPE_UI.basePath}/${row._id}`}
           editHref={canEdit ? `${ROOM_TYPE_UI.basePath}/${row._id}/edit` : undefined}
           deleteUrl={canDelete ? `${ROOM_TYPE_UI.apiBase}/${row._id}` : undefined}
         />

@@ -14,7 +14,7 @@ import { ApiError, apiRequest } from "@/services/apiClient";
 import { BOOKING_BASE } from "./bookingConfig";
 
 /** Back / Issue invoice number / Download PDF / Print */
-export function InvoiceToolbar({ b }: { b: Booking }) {
+export function InvoiceToolbar({ b, autoDownload }: { b: Booking; autoDownload?: boolean }) {
   const router = useRouter();
   const canIssue = usePermission("payment", "create");
   const [busy, setBusy] = useState(false);
@@ -43,7 +43,7 @@ export function InvoiceToolbar({ b }: { b: Booking }) {
           Issue Invoice Number
         </Button>
       )}
-      <DownloadPdfButton target=".print-sheet" fileName={pdfFileName("Invoice", b.invoiceNo ?? `Proforma-${b.bookingNo}`)} />
+      <DownloadPdfButton target=".print-sheet" fileName={pdfFileName("Invoice", b.invoiceNo ?? `Proforma-${b.bookingNo}`)} autoDownload={autoDownload} />
       <Button variant="outline" icon={<Printer className="w-4 h-4" />} onClick={() => window.print()}>
         Print
       </Button>
