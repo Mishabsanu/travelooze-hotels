@@ -48,7 +48,6 @@ export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: (
               <Link
                 key={mod.id}
                 href={mod.items[0].href}
-                prefetch={false}
                 className={`py-2.5 shrink-0 text-xs font-semibold uppercase tracking-wider relative ${active ? "text-brand font-bold" : "text-slate-600 hover:text-slate-900"
                   }`}
               >

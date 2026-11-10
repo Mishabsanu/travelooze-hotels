@@ -46,7 +46,6 @@ export function LeftSidebar({ modules }: { modules: NavModule[] }) {
             <div key={mod.id} onMouseEnter={(e) => open(mod.id, e)} onMouseLeave={close} className="w-full">
               <Link
                 href={mod.items[0].href}
-                prefetch={false}
                 className={`w-full py-3 flex flex-col items-center justify-center transition-colors ${
                   highlighted ? "bg-rail-active text-white" : "text-slate-400 hover:text-slate-100 hover:bg-rail-hover"
                 }`}
@@ -79,7 +78,6 @@ export function LeftSidebar({ modules }: { modules: NavModule[] }) {
             <Link
               key={item.href}
               href={item.href}
-              prefetch={false}
               onClick={() => setHoveredId(null)}
               className={`px-4 py-2 flex items-center text-xs transition-colors ${
                 isActivePath(pathname, item.href)

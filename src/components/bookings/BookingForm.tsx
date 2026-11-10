@@ -2,6 +2,7 @@
 
 import { Form, Formik } from "formik";
 import { CalendarPlus, MessageSquareText } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { FormCard, FormSection } from "@/components/forms/FormCard";
@@ -16,10 +17,13 @@ import type { Option } from "@/lib/types";
 import { bookingSchema, type BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi, idFileProblem } from "@/services/bookingApi";
-import { AgentMessagePanel } from "./AgentMessagePanel";
+
 import { DiscountFields } from "./DiscountFields";
 import { OccupancyEditor } from "./OccupancyEditor";
 import { RoomPicker } from "./RoomPicker";
+
+// The WhatsApp paste box (and its message parser) is only downloaded when opened
+const AgentMessagePanel = dynamic(() => import("./AgentMessagePanel").then((m) => m.AgentMessagePanel), { ssr: false });
 
 const PLAN_OPTIONS = MEAL_PLAN_CODES.map((c) => ({ value: c, label: MEAL_PLANS[c].label }));
 const MODE_OPTIONS = toOptions(PAYMENT_MODES);
