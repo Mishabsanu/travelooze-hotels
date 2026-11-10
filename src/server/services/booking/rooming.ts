@@ -6,6 +6,7 @@ import type { Booking } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
 import { perHeadRates, priceRooms } from "@/lib/pricing";
 import { capacityProblem } from "@/lib/rooming";
+import { stayRates } from "@/lib/seasonRates";
 import type { SessionUser } from "@/lib/types";
 import type { RoomingInput } from "@/lib/validation/booking.schema";
 import { AppError } from "../../http/errors";
@@ -25,7 +26,7 @@ export function buildLines(
   rooms: Pick<RoomDoc, "_id" | "number" | "roomType">[],
   types: Map<string, RoomTypeDoc>,
   mealPlan: MealPlan,
-  input: { lines?: LineInput[]; adults?: number; children?: number; guestName: string; phone: string }
+  input: { lines?: LineInput[]; adults?: number; children?: number; guestName: string; phone: string; checkIn: string; checkOut: string }
 ): Omit<BookingRoomDoc, "guests">[] & { guests: BookingRoomDoc["guests"] }[] {
   const byRoom = new Map((input.lines ?? []).map((l) => [l.room, l]));
   let adultsLeft = Math.max(input.adults ?? 1, rooms.length);
@@ -54,17 +55,18 @@ export function buildLines(
       guests.unshift({ _id: new Types.ObjectId(), name: input.guestName, type: "adult", phone: input.phone, aadhaarLast4: "", idFiles: [] });
     }
     checkGuestCounts(r.number, occ, guests);
+    const priced = stayRates(t, input.checkIn, input.checkOut);
 
     return {
       room: r._id,
       roomNumber: r.number,
       roomType: t._id,
       roomTypeName: t.name,
-      ratePerNight: t.rates?.[mealPlan] ?? 0,
+      ratePerNight: priced.rates[mealPlan] ?? 0,
       adults: occ.adults,
       children: occ.children,
       extraBeds: occ.extraBeds,
-      extraBedRate: occ.extraBeds ? (t.extraBedRates?.[mealPlan] ?? 0) : 0,
+      extraBedRate: occ.extraBeds ? (priced.extraBedRates[mealPlan] ?? 0) : 0,
       guests: guests as BookingRoomDoc["guests"],
     };
   });
@@ -145,7 +147,9 @@ export async function updateRooming(id: string, input: RoomingInput, user: Sessi
       line.children = inp.children;
       if (inp.extraBeds !== (line.extraBeds ?? 0)) {
         line.extraBeds = inp.extraBeds;
-        line.extraBedRate = inp.extraBeds ? (t?.extraBedRates?.[doc.mealPlan] ?? line.extraBedRate ?? 0) : 0;
+        const day = (d: Date) => d.toISOString().slice(0, 10);
+        const bedRate = t ? stayRates(t, day(doc.checkIn), day(doc.checkOut)).extraBedRates[doc.mealPlan] : undefined;
+        line.extraBedRate = inp.extraBeds ? (bedRate ?? line.extraBedRate ?? 0) : 0;
       }
     }
     // Merge guests: keep ID files of guests that stay, add new ones

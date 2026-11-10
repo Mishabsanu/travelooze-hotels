@@ -153,6 +153,8 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
     children: input.children,
     guestName: input.guestName,
     phone,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
   });
 
   // Per-head (group package) rate: agreed per person per night, extra beds included, no contract discount

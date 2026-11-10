@@ -1,4 +1,5 @@
 import type { BookingStatus, ChargeCategory, HotelCategory, MealPlan, PaymentMode, RoomStatus } from "./constants";
+import type { Season } from "./seasonRates";
 import type { CreatorName, RecordStatus } from "./types";
 
 export interface Hotel {
@@ -28,6 +29,7 @@ export interface RoomType {
   maxExtraBeds: number;
   rates: Record<MealPlan, number>;
   extraBedRates: Record<MealPlan, number>;
+  seasons?: Season[];
   status: RecordStatus;
   roomCount?: number;
   createdAt?: string;
@@ -190,7 +192,12 @@ export interface AvailabilityType {
   maxAdults: number;
   maxChildren: number;
   maxExtraBeds: number;
+  /** Rates for this stay (season rates averaged in) */
   rates: Record<MealPlan, number>;
   extraBedRates: Record<MealPlan, number>;
+  /** Normal rates, to show the season difference */
+  normalRates: Record<MealPlan, number>;
+  /** Seasons this stay falls in */
+  seasons: string[];
   rooms: { _id: string; number: string; floor: string }[];
 }

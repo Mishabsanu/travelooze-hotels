@@ -69,17 +69,23 @@ export async function getRoomType(id: string, user: SessionUser): Promise<RoomTy
   return toPlain<RoomType>(doc);
 }
 
+/** New seasons come with an empty _id: let MongoDB assign one */
+const withSeasonIds = (input: RoomTypeInput) => ({
+  ...input,
+  seasons: (input.seasons ?? []).map(({ _id, ...rest }) => (/^[a-f0-9]{24}$/i.test(_id) ? { _id, ...rest } : rest)),
+});
+
 export async function createRoomType(input: RoomTypeInput, user: SessionUser): Promise<RoomType> {
   assertHotelAccess(user, input.hotel);
   if (!(await Hotel.exists({ _id: input.hotel }))) throw new AppError("Hotel not found", 422, { hotel: "Hotel not found" });
-  const doc = await RoomTypeModel.create({ ...input, createdBy: user._id });
+  const doc = await RoomTypeModel.create({ ...withSeasonIds(input), createdBy: user._id });
   return getRoomType(String(doc._id), user);
 }
 
 export async function updateRoomType(id: string, input: RoomTypeInput, user: SessionUser): Promise<RoomType> {
   const existing = await getRoomType(id, user);
   if (existing.hotel?._id !== input.hotel) throw new AppError("A room type cannot be moved to another hotel", 409, { hotel: "Cannot change" });
-  await RoomTypeModel.updateOne({ _id: id }, input, { runValidators: true });
+  await RoomTypeModel.updateOne({ _id: id }, withSeasonIds(input), { runValidators: true });
   return getRoomType(id, user);
 }
 

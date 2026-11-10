@@ -1,5 +1,6 @@
 import * as Yup from "yup";
 import { HOTEL_CATEGORIES, MEAL_PLAN_CODES, ROOM_STATUS, type MealPlan } from "../constants";
+import { overlappingSeasons } from "../seasonRates";
 import { objectId, optionalEmail, optionalText, requiredText, statusField } from "./common";
 
 const GSTIN = /^$|^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
@@ -38,6 +39,31 @@ const rate = (plan: string) => Yup.number().typeError(`${plan} rate must be a nu
 
 const bedRate = () => Yup.number().typeError("Enter a number").min(0, "Cannot be negative").default(0);
 
+const ymd = (label: string) => Yup.string().required(`${label} is required`).matches(/^\d{4}-\d{2}-\d{2}$/, `Pick the ${label.toLowerCase()}`);
+
+/** Peak / off season: its own rates between two dates (0 = normal rate for that plan) */
+export const seasonSchema = Yup.object({
+  _id: Yup.string().default(""),
+  name: requiredText("Season name", 40),
+  from: ymd("From date"),
+  to: ymd("To date").test("after", "Must be on or after the from date", function (v) {
+    return !v || !this.parent.from || this.parent.yearly || v >= this.parent.from;
+  }),
+  yearly: Yup.boolean().default(false),
+  rates: Yup.object(Object.fromEntries(MEAL_PLAN_CODES.map((c) => [c, bedRate()])) as Record<MealPlan, ReturnType<typeof bedRate>>),
+  extraBedRates: Yup.object(Object.fromEntries(MEAL_PLAN_CODES.map((c) => [c, bedRate()])) as Record<MealPlan, ReturnType<typeof bedRate>>),
+});
+export type SeasonInput = Yup.InferType<typeof seasonSchema>;
+export const emptySeason: SeasonInput = {
+  _id: "",
+  name: "",
+  from: "",
+  to: "",
+  yearly: false,
+  rates: { EP: 0, CP: 0, MAP: 0, AP: 0 },
+  extraBedRates: { EP: 0, CP: 0, MAP: 0, AP: 0 },
+};
+
 export const roomTypeSchema = Yup.object({
   hotel: objectId("Hotel"),
   name: requiredText("Room type", 60),
@@ -46,6 +72,14 @@ export const roomTypeSchema = Yup.object({
   maxExtraBeds: Yup.number().typeError("Enter a number").integer().min(0).max(5).default(1),
   rates: Yup.object(Object.fromEntries(MEAL_PLAN_CODES.map((c) => [c, rate(c)])) as Record<MealPlan, ReturnType<typeof rate>>),
   extraBedRates: Yup.object(Object.fromEntries(MEAL_PLAN_CODES.map((c) => [c, bedRate()])) as Record<MealPlan, ReturnType<typeof bedRate>>),
+  seasons: Yup.array()
+    .of(seasonSchema)
+    .max(20, "At most 20 seasons")
+    .default([])
+    .test("overlap", "Two seasons share dates", function (list) {
+      const hit = overlappingSeasons(list ?? []);
+      return hit ? this.createError({ message: `Seasons "${hit[0]}" and "${hit[1]}" share dates. Make them not overlap.` }) : true;
+    }),
   status: statusField,
 });
 export type RoomTypeInput = Yup.InferType<typeof roomTypeSchema>;
@@ -57,6 +91,7 @@ export const emptyRoomType: RoomTypeInput = {
   maxExtraBeds: 1,
   rates: { EP: 0, CP: 0, MAP: 0, AP: 0 },
   extraBedRates: { EP: 0, CP: 0, MAP: 0, AP: 0 },
+  seasons: [],
   status: "active",
 };
 

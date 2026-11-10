@@ -2,6 +2,7 @@ import "server-only";
 import type { Types } from "mongoose";
 import type { MealPlan } from "@/lib/constants";
 import type { AvailabilityType } from "@/lib/hotelTypes";
+import { stayRates } from "@/lib/seasonRates";
 import { AppError } from "../../http/errors";
 import { Room } from "../../models/Room";
 import { RoomNight } from "../../models/RoomNight";
@@ -19,18 +20,24 @@ export async function getAvailability(hotelId: string, checkIn: Date, checkOut: 
     RoomNight.distinct("room", { hotel: hotelId, date: { $gte: checkIn, $lt: checkOut } }),
   ]);
   const takenSet = new Set(taken.map(String));
-  return types.map((t) => ({
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  return types.map((t) => {
+    const priced = stayRates(t, day(checkIn), day(checkOut));
+    return {
     _id: String(t._id),
     name: t.name,
     maxAdults: t.maxAdults,
     maxChildren: t.maxChildren ?? 2,
     maxExtraBeds: t.maxExtraBeds ?? 1,
-    rates: t.rates as Record<MealPlan, number>,
-    extraBedRates: (t.extraBedRates ?? { EP: 0, CP: 0, MAP: 0, AP: 0 }) as Record<MealPlan, number>,
+    rates: priced.rates,
+    extraBedRates: priced.extraBedRates,
+    normalRates: t.rates as Record<MealPlan, number>,
+    seasons: priced.seasons,
     rooms: rooms
       .filter((r) => String(r.roomType) === String(t._id) && !takenSet.has(String(r._id)))
       .map((r) => ({ _id: String(r._id), number: r.number, floor: r.floor })),
-  }));
+    };
+  });
 }
 
 /**

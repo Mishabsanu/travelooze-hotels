@@ -15,6 +15,8 @@ export interface RoomTypeDoc {
   rates: Record<MealPlan, number>;
   /** Extra bed rate per bed per night for each meal plan (food included in MAP / AP) */
   extraBedRates: Record<MealPlan, number>;
+  /** Seasonal rates (peak / off season); 0 in a season = normal rate for that plan */
+  seasons: { _id: Types.ObjectId; name: string; from: string; to: string; yearly: boolean; rates: Record<MealPlan, number>; extraBedRates: Record<MealPlan, number> }[];
   status: RecordStatus;
   createdBy?: Types.ObjectId;
   createdAt: Date;
@@ -26,6 +28,16 @@ const RatesSchema = new Schema(
   { _id: false }
 );
 
+const SeasonSchema = new Schema({
+  name: { type: String, required: true, trim: true },
+  // YYYY-MM-DD, first and last night (inclusive)
+  from: { type: String, required: true },
+  to: { type: String, required: true },
+  yearly: { type: Boolean, default: false },
+  rates: { type: RatesSchema, default: () => ({}) },
+  extraBedRates: { type: RatesSchema, default: () => ({}) },
+});
+
 const RoomTypeSchema = new Schema<RoomTypeDoc>(
   {
     hotel: { type: Schema.Types.ObjectId, ref: "Hotel", required: true, index: true },
@@ -35,6 +47,7 @@ const RoomTypeSchema = new Schema<RoomTypeDoc>(
     maxExtraBeds: { type: Number, default: 1, min: 0 },
     rates: { type: RatesSchema, default: () => ({}) },
     extraBedRates: { type: RatesSchema, default: () => ({}) },
+    seasons: { type: [SeasonSchema], default: [] },
     status: { type: String, enum: ["active", "inactive"], default: "active", index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
   },

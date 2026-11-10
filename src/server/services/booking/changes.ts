@@ -6,6 +6,7 @@ import type { Booking } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
 import { priceCharge, round2 } from "@/lib/pricing";
 import { capacityProblem } from "@/lib/rooming";
+import { stayRates } from "@/lib/seasonRates";
 import type { SessionUser } from "@/lib/types";
 import type { ChargeInput, RateInput } from "@/lib/validation/booking.schema";
 import { AppError } from "../../http/errors";
@@ -134,8 +135,9 @@ export async function moveRoom(id: string, input: { fromRoom: string; toRoom: st
     line.roomType = type._id;
     line.roomTypeName = type.name;
     if (input.rate === "new") {
-      line.ratePerNight = type.rates?.[doc.mealPlan as MealPlan] ?? line.ratePerNight;
-      if (line.extraBeds) line.extraBedRate = type.extraBedRates?.[doc.mealPlan as MealPlan] ?? line.extraBedRate;
+      const priced = stayRates(type, dayKey(doc.checkIn), dayKey(doc.checkOut));
+      line.ratePerNight = priced.rates[doc.mealPlan as MealPlan] || line.ratePerNight;
+      if (line.extraBeds) line.extraBedRate = priced.extraBedRates[doc.mealPlan as MealPlan] ?? line.extraBedRate;
       repriceDoc(doc);
     }
     doc.markModified("rooms");
@@ -224,10 +226,11 @@ export async function changeRate(id: string, input: RateInput, user: SessionUser
     const types = new Map((await RoomType.find({ _id: { $in: doc.rooms.map((l) => l.roomType) } }).lean()).map((t) => [String(t._id), t]));
     for (const l of doc.rooms) {
       const t = types.get(String(l.roomType));
-      const rate = t?.rates?.[mealPlan] ?? 0;
+      const priced = t ? stayRates(t, dayKey(doc.checkIn), dayKey(doc.checkOut)) : null;
+      const rate = priced?.rates[mealPlan] ?? 0;
       if (rate <= 0) throw new AppError(`No ${mealPlan} rate set for ${l.roomTypeName}`, 422, { mealPlan: "Rate missing" });
       l.ratePerNight = rate;
-      l.extraBedRate = l.extraBeds ? (t?.extraBedRates?.[mealPlan] ?? 0) : 0;
+      l.extraBedRate = l.extraBeds ? (priced?.extraBedRates[mealPlan] ?? 0) : 0;
     }
     doc.perHeadRate = undefined;
     doc.focPax = undefined;

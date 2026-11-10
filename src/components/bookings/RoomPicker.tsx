@@ -124,6 +124,11 @@ export function RoomPicker({
               <span className="text-slate-400 normal-case font-medium tracking-normal">· up to {t.maxAdults} adults</span>
             </span>
             <span className="text-[11px] text-slate-600">
+              {t.seasons?.length > 0 && (
+                <span className="mr-1.5 inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800" title={`Normal rate ${formatINR(t.normalRates?.[mealPlan])}`}>
+                  {t.seasons.join(" + ")}
+                </span>
+              )}
               <b className="tabular-nums">{formatINR(t.rates?.[mealPlan])}</b> / night ({mealPlan}) ·{" "}
               <span className={t.rooms.length ? "text-emerald-700 font-semibold" : "text-rose-600 font-semibold"}>
                 {t.rooms.length ? `${t.rooms.length} free` : "Sold out"}

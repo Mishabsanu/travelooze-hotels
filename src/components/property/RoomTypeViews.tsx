@@ -9,7 +9,7 @@ import { usePermission } from "@/components/providers/SessionProvider";
 import { DataTable } from "@/components/table/DataTable";
 import { RowActions } from "@/components/table/RowActions";
 import { STATUS_FILTER, type Column } from "@/components/table/types";
-import { StatusBadge } from "@/components/ui/Badge";
+import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { useApiSubmit } from "@/hooks/useApiSubmit";
 import { MEAL_PLANS, MEAL_PLAN_CODES } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
@@ -18,6 +18,7 @@ import type { Option, Paginated } from "@/lib/types";
 import { emptyRoomType, roomTypeSchema, type RoomTypeInput } from "@/lib/validation/hotel.schema";
 import { resourceApi } from "@/services/apiClient";
 import { ROOM_TYPE_UI } from "./propertyConfig";
+import { SeasonEditor } from "./SeasonEditor";
 
 const api = resourceApi<RoomType>(ROOM_TYPE_UI.apiBase);
 
@@ -48,6 +49,20 @@ export function RoomTypeListView({ data, hotelOptions }: { data: Paginated<RoomT
         align: "right",
         render: (r) => <span className="tabular-nums">{formatINR(r.rates?.[c])}</span>,
       })),
+      {
+        key: "seasons",
+        label: "Seasons",
+        align: "center",
+        sortKey: false,
+        render: (r) =>
+          r.seasons?.length ? (
+            <span title={r.seasons.map((s) => `${s.name}: ${s.from} → ${s.to}${s.yearly ? " (every year)" : ""}`).join("\n")}>
+              <Badge variant="warning">{r.seasons.length} season{r.seasons.length > 1 ? "s" : ""}</Badge>
+            </span>
+          ) : (
+            <span className="text-slate-300">—</span>
+          ),
+      },
       { key: "roomCount", label: "Rooms", align: "center", sortKey: false, render: (r) => r.roomCount ?? 0 },
       { key: "status", label: "Status", align: "center", render: (r) => <StatusBadge status={r.status} /> },
     ],
@@ -83,6 +98,15 @@ export function RoomTypeForm({ initial, hotelOptions, defaultHotel }: { initial?
         maxExtraBeds: initial.maxExtraBeds ?? 1,
         rates: { ...emptyRoomType.rates, ...initial.rates },
         extraBedRates: { ...emptyRoomType.extraBedRates, ...(initial.extraBedRates ?? {}) },
+        seasons: (initial.seasons ?? []).map((s) => ({
+          _id: s._id ?? "",
+          name: s.name,
+          from: s.from,
+          to: s.to,
+          yearly: Boolean(s.yearly),
+          rates: { ...emptyRoomType.rates, ...s.rates },
+          extraBedRates: { ...emptyRoomType.extraBedRates, ...(s.extraBedRates ?? {}) },
+        })),
         status: initial.status,
       }
     : { ...emptyRoomType, hotel: defaultHotel ?? (hotelOptions.length === 1 ? hotelOptions[0].value : "") };
@@ -122,7 +146,7 @@ export function RoomTypeForm({ initial, hotelOptions, defaultHotel }: { initial?
               <TextField name="maxExtraBeds" label="Max Extra Beds" type="number" min={0} max={5} hint="Each adds 1 adult" />
               <SelectField name="status" label="Status" required options={STATUS_OPTIONS} />
             </FormSection>
-            <FormSection title="Rates per room per night (before GST)" description="GST is added automatically on the booking by slab.">
+            <FormSection title="Normal Rates per room per night (before GST)" description="Used on every night that is not in a season. GST is added automatically on the booking by slab.">
               {MEAL_PLAN_CODES.map((c) => (
                 <TextField key={c} name={`rates.${c}`} label={MEAL_PLANS[c].label} type="number" min={0} step="1" required />
               ))}
@@ -134,6 +158,12 @@ export function RoomTypeForm({ initial, hotelOptions, defaultHotel }: { initial?
               {MEAL_PLAN_CODES.map((c) => (
                 <TextField key={c} name={`extraBedRates.${c}`} label={`Extra Bed – ${c}`} type="number" min={0} step="1" />
               ))}
+            </FormSection>
+            <FormSection
+              title="Seasonal Rates"
+              description="Peak, festival or off-season prices between two dates. Nights inside a season use its rate; a blank rate uses the normal one. A stay across seasons is priced night by night."
+            >
+              <SeasonEditor />
             </FormSection>
           </FormCard>
         </Form>
