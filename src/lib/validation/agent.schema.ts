@@ -9,7 +9,7 @@ export const agentSchema = Yup.object({
   address: optionalText("Address", 300),
   gstin: Yup.string().trim().uppercase().default("").max(15, "GSTIN is 15 characters"),
   discountPercent: Yup.number().typeError("Enter a number").min(0).max(100, "At most 100%").required(),
-  creditLimit: Yup.number().typeError("Enter a number").min(0, "Cannot be negative").required(),
+  creditLimit: Yup.number().typeError("Enter a number").min(0).default(0),
   status: statusField,
 });
 export type AgentInput = Yup.InferType<typeof agentSchema>;

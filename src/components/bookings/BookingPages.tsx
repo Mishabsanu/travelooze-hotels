@@ -1,4 +1,4 @@
-import { CalendarCheck, Download, Plus } from "lucide-react";
+import { CalendarCheck, CheckCircle2, Download, Eye, FileDown, FileText, Plus } from "lucide-react";
 import Link from "next/link";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 import { APP_NAME, LOGO_SRC } from "@/lib/brand";
@@ -39,9 +39,13 @@ export async function BookingListPage({ searchParams, agentOnly = false }: { sea
   const allowed = agentOnly ? canBooking(user, "agent", "view") : canListBookings(user);
   if (!allowed) return <AccessDenied />;
   const onlyAgent = agentOnly || agentBookingsOnly(user);
-  const [data, hotelOptions] = await Promise.all([
-    listBookings(parseListQuery(await searchParams, FILTERS), user, onlyAgent ? "agent" : undefined),
+  const sp = await searchParams;
+  const createdId = first(sp.created);
+  const [data, hotelOptions, created] = await Promise.all([
+    listBookings(parseListQuery(sp, FILTERS), user, onlyAgent ? "agent" : undefined),
     listHotelOptions(user),
+    // Just saved from the booking form: show its invoice right here
+    createdId ? getBooking(createdId, user).catch(() => null) : null,
   ]);
   const createSource = onlyAgent ? "agent" : "walkin";
   const createHref = onlyAgent ? "/dashboard/sales/agent-bookings/new" : `${BOOKING_BASE}/new`;
@@ -59,8 +63,39 @@ export async function BookingListPage({ searchParams, agentOnly = false }: { sea
           )
         }
       />
+      {created && <CreatedBanner b={created} />}
       <BookingListView data={data} hotelOptions={hotelOptions} agentOnly={onlyAgent} today={toDayString(todayIST())} />
     </>
+  );
+}
+
+const bannerBtn = "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-xs font-bold transition";
+
+/** After creating a booking: its number, total and the invoice (view / download PDF). */
+function CreatedBanner({ b }: { b: Awaited<ReturnType<typeof getBooking>> }) {
+  const href = `${BOOKING_BASE}/${b._id}`;
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3" role="status">
+      <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" />
+      <div className="min-w-0 flex-1 text-xs text-emerald-900">
+        <p className="text-sm font-bold">
+          Booking <span className="font-mono">{b.bookingNo}</span> confirmed
+        </p>
+        <p>
+          {b.guest.name} · {b.hotel?.name} · {formatDay(b.checkIn)} → {formatDay(b.checkOut)} · {b.rooms.length} room{b.rooms.length === 1 ? "" : "s"} ·{" "}
+          <b>{formatINR(b.grandTotal)}</b>
+        </p>
+      </div>
+      <Link href={`${href}/invoice`} className={`${bannerBtn} bg-brand text-white hover:bg-brand-dark`}>
+        <FileText className="h-4 w-4" /> View Invoice
+      </Link>
+      <Link href={`${href}/invoice?download=1`} className={`${bannerBtn} border border-brand-border bg-white text-brand hover:bg-brand-light`}>
+        <FileDown className="h-4 w-4" /> Download PDF
+      </Link>
+      <Link href={href} className={`${bannerBtn} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}>
+        <Eye className="h-4 w-4" /> Open Booking
+      </Link>
+    </div>
   );
 }
 

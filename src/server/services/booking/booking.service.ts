@@ -19,7 +19,6 @@ import { Hotel } from "../../models/Hotel";
 import { Room } from "../../models/Room";
 import { RoomType } from "../../models/RoomType";
 import { toPlain } from "../../utils/serialize";
-import { agentBalances } from "../agent.service";
 import { assertHotelAccess } from "../hotel.service";
 import { addDays, nightsBetween, parseDay, todayIST } from "../stay";
 import { holdRoomNights, releaseRoomNights } from "./availability";
@@ -184,21 +183,8 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
   const advance = round2(input.advance ?? 0);
   if (advance > price.total) throw new AppError("Advance is more than the booking total", 422, { advance: "More than total" });
   if (advance > 0 && !can(user, "payment", "create")) throw new AppError("You do not have permission to take payments", 403);
-  const billTo = source === "agent" && input.billTo === "agent" ? "agent" : "guest";
-
-  if (agent && billTo === "agent") {
-    const due = (await agentBalances([agent._id])).get(String(agent._id))?.due ?? 0;
-    const newDue = due + price.total - advance;
-    const override = input.overrideCredit && user.isSuperAdmin;
-    if (newDue > agent.creditLimit && !override) {
-      const need = round2(newDue - agent.creditLimit);
-      throw new AppError(
-        `Credit limit exceeded for ${agent.name}: outstanding ₹${due}, limit ₹${agent.creditLimit}. Collect at least ₹${need} as advance${user.isSuperAdmin ? " or tick Override credit limit" : ""}.`,
-        409,
-        { advance: `Collect at least ₹${need}` }
-      );
-    }
-  }
+  // Agent bookings are billed to the agent (no credit limit); walk-ins to the guest
+  const billTo = source === "agent" ? "agent" : "guest";
 
   const bookingId = new Types.ObjectId();
   await holdRoomNights(bookingId, input.hotel, roomIds, checkIn, checkOut);

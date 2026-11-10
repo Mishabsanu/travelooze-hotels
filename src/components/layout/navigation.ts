@@ -74,7 +74,10 @@ export const NAV_MODULES: NavModule[] = [
     label: "Reports",
     icon: BarChart3,
     basePath: "/dashboard/reports",
-    items: [{ label: "Revenue & Agent Outstanding", href: "/dashboard/reports", permission: "report" }],
+    items: [
+      { label: "Revenue & Agent Outstanding", href: "/dashboard/reports", permission: "report" },
+      { label: "Agent Report", href: "/dashboard/reports/agents", permission: "report" },
+    ],
   },
   {
     id: "admin",

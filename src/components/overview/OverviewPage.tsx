@@ -148,7 +148,6 @@ export async function OverviewPage() {
               <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                 <th className={`${th} text-left`}>Agent</th>
                 <th className={`${th} text-right`}>Outstanding</th>
-                <th className={`${th} text-right`}>Credit Limit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -159,13 +158,12 @@ export async function OverviewPage() {
                       {a.name}
                     </Link>
                   </td>
-                  <td className={`${td} text-right tabular-nums font-semibold ${a.creditLimit && a.due > a.creditLimit ? "text-rose-600" : "text-amber-700"}`}>
+                  <td className={`${td} text-right tabular-nums font-semibold text-amber-700`}>
                     {formatINR(a.due)}
                   </td>
-                  <td className={`${td} text-right tabular-nums`}>{a.creditLimit ? formatINR(a.creditLimit) : "Prepaid"}</td>
                 </tr>
               ))}
-              {o.agentDues.length === 0 && <Empty span={3} text="No outstanding balances" />}
+              {o.agentDues.length === 0 && <Empty span={2} text="No outstanding balances" />}
             </tbody>
           </table>
         </Panel>

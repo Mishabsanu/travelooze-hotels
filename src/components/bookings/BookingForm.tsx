@@ -128,7 +128,7 @@ export function BookingForm(p: BookingFormProps) {
       return booking;
     },
     successMessage: "Booking confirmed",
-    redirectTo: p.backHref,
+    redirectTo: (b) => `${p.backHref}?created=${b._id}`,
   });
 
   return (
@@ -213,15 +213,6 @@ export function BookingForm(p: BookingFormProps) {
                   <>
                     <SearchSelectField name="agent" label="Agent" required placeholder="Select agent" options={p.agentOptions} searchPlaceholder="Search agents..." />
                     <TextField name="agentRef" label="Agent Ref No." maxLength={60} placeholder="e.g. B2295 HN" />
-                    <SelectField
-                      name="billTo"
-                      label="Bill To"
-                      required
-                      options={[
-                        { value: "agent", label: "Agent (credit account)" },
-                        { value: "guest", label: "Guest pays at hotel" },
-                      ]}
-                    />
                   </>
                 )}
               </FormSection>
@@ -304,12 +295,6 @@ export function BookingForm(p: BookingFormProps) {
                       </>
                     )}
                   </>
-                )}
-                {isAgent && p.isSuperAdmin && (
-                  <label className="flex items-center gap-2 text-xs text-slate-600 self-end pb-2">
-                    <input type="checkbox" checked={values.overrideCredit} onChange={(e) => setFieldValue("overrideCredit", e.target.checked)} className="w-3.5 h-3.5 accent-brand" />
-                    Override credit limit (Super Admin)
-                  </label>
                 )}
 
                 <div className="md:col-span-2 lg:col-span-3 border border-line bg-white">

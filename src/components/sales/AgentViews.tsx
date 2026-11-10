@@ -42,19 +42,12 @@ export function AgentListView({ data }: { data: Paginated<Agent> }) {
       { key: "email", label: "Email", hiddenByDefault: true },
       { key: "discountPercent", label: "Discount", align: "center", render: (r) => <Badge variant="brand">{r.discountPercent}%</Badge> },
       {
-        key: "creditLimit",
-        label: "Credit Limit",
-        align: "right",
-        render: (r) => (r.creditLimit ? <span className="tabular-nums">{formatINR(r.creditLimit)}</span> : <Badge variant="neutral">Prepaid</Badge>),
-      },
-      {
         key: "outstanding",
         label: "Outstanding",
         align: "right",
         sortKey: false,
         render: (r) => {
-          const over = r.creditLimit > 0 && (r.outstanding ?? 0) > r.creditLimit;
-          return <span className={`tabular-nums font-semibold ${over ? "text-rose-600" : (r.outstanding ?? 0) > 0 ? "text-amber-700" : "text-slate-400"}`}>{formatINR(r.outstanding)}</span>;
+          return <span className={`tabular-nums font-semibold ${(r.outstanding ?? 0) > 0 ? "text-amber-700" : "text-slate-400"}`}>{formatINR(r.outstanding)}</span>;
         },
       },
       { key: "bookingCount", label: "Bookings", align: "center", sortKey: false },
@@ -93,7 +86,7 @@ export function AgentForm({ initial }: { initial?: Agent }) {
         address: initial.address,
         gstin: initial.gstin,
         discountPercent: initial.discountPercent,
-        creditLimit: initial.creditLimit,
+        creditLimit: initial.creditLimit ?? 0,
         status: initial.status,
       }
     : emptyAgent;
@@ -128,7 +121,6 @@ export function AgentForm({ initial }: { initial?: Agent }) {
             </FormSection>
             <FormSection title="Contract" description="The discount is applied automatically on every booking for this agent.">
               <TextField name="discountPercent" label="Contract Discount %" type="number" min={0} max={100} step="0.5" required />
-              <TextField name="creditLimit" label="Credit Limit (₹)" type="number" min={0} step="1000" required hint="0 = prepaid" />
             </FormSection>
           </FormCard>
         </Form>

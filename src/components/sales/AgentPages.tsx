@@ -69,7 +69,6 @@ export async function AgentDetailPage({ params, searchParams }: { params: IdPara
   const query = parseListQuery(await searchParams, ["hotel", "stay", "mealPlan"]);
   query.filters.agent = id;
   const [bookings, hotelOptions] = showBookings ? await Promise.all([listBookings(query, user, "agent"), listHotelOptions(user)]) : [null, []];
-  const over = agent.creditLimit > 0 && agent.balance.due > agent.creditLimit;
 
   return (
     <div className="space-y-5">
@@ -86,9 +85,8 @@ export async function AgentDetailPage({ params, searchParams }: { params: IdPara
           <DetailItem label="Received" value={formatINR(agent.balance.paid)} />
           <DetailItem
             label="Outstanding"
-            value={<span className={over ? "text-rose-600" : agent.balance.due > 0 ? "text-amber-700" : ""}>{formatINR(agent.balance.due)}</span>}
+            value={<span className={agent.balance.due > 0 ? "text-amber-700" : ""}>{formatINR(agent.balance.due)}</span>}
           />
-          <DetailItem label="Credit Limit" value={agent.creditLimit ? formatINR(agent.creditLimit) : "Prepaid (no credit)"} />
           <DetailItem label="Contract Discount" value={`${agent.discountPercent}%`} />
           <DetailItem label="Bookings" value={agent.balance.count} />
         </DetailSection>

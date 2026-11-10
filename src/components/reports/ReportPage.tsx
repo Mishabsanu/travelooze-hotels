@@ -100,7 +100,6 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
                 <th className={`${th} text-right`}>Billed</th>
                 <th className={`${th} text-right`}>Received</th>
                 <th className={`${th} text-right`}>Outstanding</th>
-                <th className={`${th} text-right`}>Credit Limit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -119,10 +118,9 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
                   <td className={`${td} text-right`}>{a.count}</td>
                   <td className={`${td} text-right`}>{formatINR(a.billed)}</td>
                   <td className={`${td} text-right`}>{formatINR(a.paid)}</td>
-                  <td className={`${td} text-right font-semibold ${a.creditLimit && a.due > a.creditLimit ? "text-rose-600" : a.due > 0 ? "text-amber-700" : ""}`}>
+                  <td className={`${td} text-right font-semibold ${a.due > 0 ? "text-amber-700" : ""}`}>
                     {formatINR(a.due)}
                   </td>
-                  <td className={`${td} text-right`}>{a.creditLimit ? formatINR(a.creditLimit) : "Prepaid"}</td>
                 </tr>
               ))}
             </tbody>
