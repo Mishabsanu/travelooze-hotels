@@ -201,7 +201,6 @@ export function BookingForm(p: BookingFormProps) {
                         type="number"
                         min={0}
                         step="1"
-                        hint="Tour leader / driver: the +2 in 49 + 2. They stay free."
                       />
                     </>
                   )}
