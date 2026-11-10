@@ -33,6 +33,14 @@ export const PAYMENT_MODES = {
 } as const;
 export type PaymentMode = keyof typeof PAYMENT_MODES;
 
+/** Reference asked for each payment mode (cash has none) */
+export const PAYMENT_REF: Record<PaymentMode, { label: string; placeholder: string } | null> = {
+  cash: null,
+  upi: { label: "UPI Ref No.", placeholder: "12-digit UPI ref" },
+  card: { label: "Card Approval / Last 4", placeholder: "e.g. 4321" },
+  bank: { label: "UTR / Bank Ref", placeholder: "Transfer UTR no." },
+};
+
 /** Housekeeping status of a room (separate from active / inactive) */
 export const ROOM_STATUS = {
   available: "Clean",

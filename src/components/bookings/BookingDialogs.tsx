@@ -9,7 +9,7 @@ import { SelectField, TextAreaField, TextField } from "@/components/forms/Formik
 import { Button } from "@/components/ui/Button";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { Modal } from "@/components/ui/Modal";
-import { PAYMENT_MODES, toOptions } from "@/lib/constants";
+import { PAYMENT_MODES, PAYMENT_REF, toOptions, type PaymentMode } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
 import { parseIstLocal, stayMoment, timeLabel, toIstLocal } from "@/lib/stayTimes";
 import type { Booking } from "@/lib/hotelTypes";
@@ -55,17 +55,31 @@ export default function BookingDialogs({ b, user, dialog, setDialog, busy, arriv
           validationSchema={paymentSchema}
           onSubmit={(v) => run(() => bookingApi.pay(b._id, v), "Payment recorded")}
         >
-          <Form noValidate className="space-y-3">
-            <TextField name="amount" label="Amount (₹)" type="number" min={1} step="0.01" required />
-            <SelectField name="mode" label="Mode" required options={toOptions(PAYMENT_MODES)} />
-            {b.source === "agent" && (
-              <SelectField name="paidBy" label="Paid By" options={[{ value: "agent", label: "Agent" }, { value: "guest", label: "Guest" }]} />
-            )}
-            <TextField name="reference" label="Reference (UPI / txn id)" maxLength={60} />
-            <Button type="submit" className="w-full" loading={busy}>
-              Save Payment
-            </Button>
-          </Form>
+          {({ values, setFieldValue }) => {
+            const ref = PAYMENT_REF[values.mode as PaymentMode];
+            return (
+              <Form noValidate className="space-y-3">
+                <TextField name="amount" label="Amount (₹)" type="number" min={1} step="0.01" required />
+                <SelectField
+                  name="mode"
+                  label="Mode"
+                  required
+                  options={toOptions(PAYMENT_MODES)}
+                  onChange={(e) => {
+                    void setFieldValue("mode", e.target.value);
+                    if (!PAYMENT_REF[e.target.value as PaymentMode]) void setFieldValue("reference", "");
+                  }}
+                />
+                {b.source === "agent" && (
+                  <SelectField name="paidBy" label="Paid By" options={[{ value: "agent", label: "Agent" }, { value: "guest", label: "Guest" }]} />
+                )}
+                {ref && <TextField name="reference" label={ref.label} placeholder={ref.placeholder} maxLength={60} />}
+                <Button type="submit" className="w-full" loading={busy}>
+                  Save Payment
+                </Button>
+              </Form>
+            );
+          }}
         </Formik>
       </Modal>
 

@@ -8,7 +8,7 @@ import { FormCard, FormSection } from "@/components/forms/FormCard";
 import { SearchSelectField, SelectField, TextField } from "@/components/forms/FormikFields";
 import { FormField } from "@/components/ui/FormField";
 import { useApiSubmit } from "@/hooks/useApiSubmit";
-import { MEAL_PLANS, MEAL_PLAN_CODES, PAYMENT_MODES, toOptions, type MealPlan } from "@/lib/constants";
+import { MEAL_PLANS, MEAL_PLAN_CODES, PAYMENT_MODES, PAYMENT_REF, toOptions, type MealPlan, type PaymentMode } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
 import type { AvailabilityType, Booking } from "@/lib/hotelTypes";
 import { perHeadRates, priceRooms, round2 } from "@/lib/pricing";
@@ -284,8 +284,23 @@ export function BookingForm(p: BookingFormProps) {
                     <TextField name="advance" label="Advance Received (₹)" type="number" min={0} step="1" />
                     {Number(values.advance) > 0 && (
                       <>
-                        <SelectField name="advanceMode" label="Mode" options={MODE_OPTIONS} />
-                        <TextField name="advanceRef" label="UPI / Txn Ref" maxLength={60} />
+                        <SelectField
+                          name="advanceMode"
+                          label="Mode"
+                          options={MODE_OPTIONS}
+                          onChange={(e) => {
+                            void setFieldValue("advanceMode", e.target.value);
+                            if (!PAYMENT_REF[e.target.value as PaymentMode]) void setFieldValue("advanceRef", "");
+                          }}
+                        />
+                        {PAYMENT_REF[values.advanceMode as PaymentMode] && (
+                          <TextField
+                            name="advanceRef"
+                            label={PAYMENT_REF[values.advanceMode as PaymentMode]!.label}
+                            placeholder={PAYMENT_REF[values.advanceMode as PaymentMode]!.placeholder}
+                            maxLength={60}
+                          />
+                        )}
                       </>
                     )}
                   </>
