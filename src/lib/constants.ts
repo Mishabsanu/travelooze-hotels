@@ -10,6 +10,7 @@ export const MEAL_PLAN_CODES = Object.keys(MEAL_PLANS) as MealPlan[];
 export const HOTEL_CATEGORIES = {
   budget: "Budget",
   standard: "Standard",
+  "2star": "2 Star",
   "3star": "3 Star",
   "4star": "4 Star",
 } as const;
