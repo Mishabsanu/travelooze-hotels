@@ -1,6 +1,6 @@
 import "server-only";
 import { Types } from "mongoose";
-import { canBooking } from "@/lib/bookingAccess";
+import { canBooking, deleteBlocker } from "@/lib/bookingAccess";
 import type { PaymentMode } from "@/lib/constants";
 import type { Booking } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
@@ -154,10 +154,10 @@ export async function addIdFiles(id: string, files: File[], aadhaar: string, use
  */
 export async function deleteBooking(id: string, user: SessionUser): Promise<void> {
   const { doc } = await load(id, user);
-  if (!canBooking(user, doc.source, "delete")) throw forbid("delete this booking");
-  if (doc.status === "checked_in" || doc.status === "checked_out") throw new AppError("The guest has stayed: this booking cannot be deleted", 409);
-  if (doc.invoiceNo) throw new AppError(`Invoice ${doc.invoiceNo} is issued for this booking: it cannot be deleted`, 409);
-  if ((doc.payments ?? []).length) throw new AppError("Payments are recorded on this booking: cancel it instead of deleting", 409);
+  const blocked = deleteBlocker(user, doc);
+  if (blocked) throw new AppError(blocked, canBooking(user, doc.source, "delete") ? 409 : 403);
+  // In-house guest: the room becomes free, mark it for cleaning
+  if (doc.status === "checked_in") await Room.updateMany({ _id: { $in: doc.rooms.map((l) => l.room) } }, { housekeeping: "cleaning" });
   await releaseRoomNights(doc._id);
   await BookingModel.deleteOne({ _id: doc._id });
 }

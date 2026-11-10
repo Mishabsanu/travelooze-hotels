@@ -12,7 +12,7 @@ import { BOOKING_STATUS, MEAL_PLAN_CODES, toOptions, type BookingStatus } from "
 import { formatDateTime, formatDay, formatINR } from "@/lib/format";
 import { isEarlyCheckIn, isLateCheckOut, timeLabel } from "@/lib/stayTimes";
 import type { Booking } from "@/lib/hotelTypes";
-import { canBooking } from "@/lib/bookingAccess";
+import { canBooking, deleteBlocker } from "@/lib/bookingAccess";
 import { can } from "@/lib/permissions";
 import type { Option, Paginated, SessionUser } from "@/lib/types";
 
@@ -101,11 +101,8 @@ function BookingRowActions({ b, user, today }: { b: Booking; user: SessionUser; 
       <Link href={href} title="Open booking" className="p-1 rounded text-slate-400 hover:text-brand hover:bg-brand-light">
         <Eye className="w-3.5 h-3.5" />
       </Link>
-      {/* Delete only mistakes / duplicates: no money, no invoice, guest not stayed (others: Cancel) */}
-      {(b.status === "confirmed" || b.status === "cancelled" || b.status === "no_show") &&
-        !b.invoiceNo &&
-        b.paid === 0 &&
-        canBooking(user, b.source, "delete") && (
+      {/* Delete: Super Admin any booking; others only mistakes / duplicates (see deleteBlocker) */}
+      {!deleteBlocker(user, b) && (
           <RowActions entityLabel="Booking" itemName={`${b.bookingNo} – ${b.guest.name}`} deleteUrl={`/api/bookings/${b._id}`} />
         )}
     </div>

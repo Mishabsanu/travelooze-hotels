@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, BadgePercent, Ban, CalendarRange, FileText, IdCard, LogIn, LogOut, Pencil, Printer, Receipt, Wallet } from "lucide-react";
+import { ArrowRightLeft, BadgePercent, Ban, Trash2, CalendarRange, FileText, IdCard, LogIn, LogOut, Pencil, Printer, Receipt, Wallet } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -8,11 +8,13 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSession } from "@/components/providers/SessionProvider";
 import { Button } from "@/components/ui/Button";
-import { canBooking } from "@/lib/bookingAccess";
+import { canBooking, deleteBlocker } from "@/lib/bookingAccess";
+import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
+import { BOOKING_BASE } from "./bookingConfig";
 import type { Booking } from "@/lib/hotelTypes";
 import { formatDay } from "@/lib/format";
 import { can } from "@/lib/permissions";
-import { ApiError } from "@/services/apiClient";
+import { ApiError, apiRequest } from "@/services/apiClient";
 import type { Dialog } from "./BookingDialogs";
 import type { StayDialog } from "./StayDialogs";
 
@@ -46,6 +48,20 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
   const [stay, setStay] = useState<StayDialog | null>(null);
   const canEditRate = (b.status === "confirmed" || b.status === "checked_in") && canBooking(user, b.source, "update") && !b.invoiceNo;
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const canDelete = !deleteBlocker(user, b);
+  const removeBooking = async () => {
+    setBusy(true);
+    try {
+      await apiRequest(`/api/bookings/${b._id}`, "DELETE");
+      toast.success(`Booking ${b.bookingNo} deleted`);
+      router.push(BOOKING_BASE);
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Could not delete the booking");
+      setBusy(false);
+    }
+  };
 
   const run = async (fn: () => Promise<unknown>, message: string) => {
     setBusy(true);
@@ -134,6 +150,23 @@ export function BookingActions({ booking: b, today, autoOpen }: { booking: Booki
           Cancel / No-show
         </Button>
       )}
+      {canDelete && (
+        <Button variant="ghost" className="text-rose-600 hover:bg-rose-50 hover:text-rose-700" icon={<Trash2 className="w-4 h-4" />} onClick={() => setConfirmDelete(true)}>
+          Delete
+        </Button>
+      )}
+      <ConfirmDeleteModal
+        open={confirmDelete}
+        entityLabel="Booking"
+        itemName={
+          b.paid > 0 || b.invoiceNo || b.status === "checked_in" || b.status === "checked_out"
+            ? `${b.bookingNo} – ${b.guest.name}. Warning: ${[b.paid > 0 && `₹${b.paid} payments`, b.invoiceNo && `invoice ${b.invoiceNo}`, (b.status === "checked_in" || b.status === "checked_out") && "stay record"].filter(Boolean).join(", ")} will be deleted too.`
+            : `${b.bookingNo} – ${b.guest.name}`
+        }
+        loading={busy}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={removeBooking}
+      />
 
       {show.charge && (
         <Button variant="outline" icon={<Receipt className="w-4 h-4" />} onClick={() => setStay("charge")}>

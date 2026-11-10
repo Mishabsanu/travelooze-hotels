@@ -40,16 +40,19 @@ export function DetailCard({ title, subtitle, badge, icon, backHref, editHref, c
           </Link>
         )}
       </div>
-      <div className="p-4 sm:p-6 space-y-6">{children}</div>
+      <div className="p-4 sm:p-6 space-y-4">{children}</div>
     </div>
   );
 }
 
+/** A titled panel of fields (info-sheet style: label over value, thin row lines, no boxes). */
 export function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-3">
-      <h2 className="text-xs font-bold text-brand uppercase tracking-wider pb-1.5 border-b border-slate-100">{title}</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">{children}</div>
+    <section className="overflow-hidden rounded-lg border border-slate-200">
+      <h2 className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-brand">{title}</h2>
+      <dl className="grid grid-cols-1 gap-x-8 px-4 sm:grid-cols-2 lg:grid-cols-3 [&>div:last-child]:border-b-0 sm:[&>div:nth-last-child(2):nth-child(odd)]:border-b-0 lg:[&>div:nth-last-child(2):nth-child(odd)]:border-b lg:[&>div:nth-last-child(-n+3):nth-child(3n+1)]:border-b-0 lg:[&>div:nth-last-child(-n+2):nth-child(3n+2)]:border-b-0">
+        {children}
+      </dl>
     </section>
   );
 }
@@ -57,11 +60,9 @@ export function DetailSection({ title, children }: { title: string; children: Re
 export function DetailItem({ label, value, mono }: { label: string; value?: ReactNode; mono?: boolean }) {
   const empty = value === undefined || value === null || value === "";
   return (
-    <div className="p-2.5 bg-slate-50/70 border border-slate-200/80 rounded-lg">
-      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">{label}</span>
-      <span className={`font-semibold text-slate-800 break-words text-[12px] ${mono ? "font-mono" : ""}`}>
-        {empty ? "—" : value}
-      </span>
+    <div className="min-w-0 border-b border-slate-100 py-2.5">
+      <dt className="text-[11px] font-medium text-slate-500">{label}</dt>
+      <dd className={`mt-0.5 break-words text-[13px] font-semibold ${empty ? "text-slate-300" : "text-slate-900"} ${mono ? "font-mono" : ""}`}>{empty ? "—" : value}</dd>
     </div>
   );
 }

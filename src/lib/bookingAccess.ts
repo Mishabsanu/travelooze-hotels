@@ -21,3 +21,19 @@ export const canListBookings = (user: SessionUser) => can(user, "booking", "view
 
 /** Sees only agent bookings (sales team without front-office access). */
 export const agentBookingsOnly = (user: SessionUser) => !can(user, "booking", "view") && can(user, "agent_booking", "view");
+
+type DeletableBooking = { source: Source; status: string; invoiceNo?: string | null; payments?: unknown[] | null };
+
+/**
+ * Who may delete a booking for good. Super Admin: any booking (the confirm pop-up warns about money / invoice).
+ * Others with delete permission: only mistakes / duplicates (no payment, no invoice, guest has not stayed).
+ * Returns null when allowed, otherwise the reason.
+ */
+export function deleteBlocker(user: SessionUser | null | undefined, b: DeletableBooking): string | null {
+  if (!canBooking(user, b.source, "delete")) return "You do not have permission to delete this booking";
+  if (user?.isSuperAdmin) return null;
+  if (b.status === "checked_in" || b.status === "checked_out") return "The guest has stayed: only a Super Admin can delete this booking";
+  if (b.invoiceNo) return `Invoice ${b.invoiceNo} is issued: only a Super Admin can delete this booking`;
+  if ((b.payments ?? []).length) return "Payments are recorded: cancel it instead, or ask a Super Admin to delete";
+  return null;
+}

@@ -19,7 +19,7 @@ export function ConfirmDeleteModal({ open, entityLabel, itemName, loading, onCan
       open={open}
       onClose={onCancel}
       title={`Delete ${entityLabel}?`}
-      size="sm"
+      size="md"
       icon={<Trash2 className="w-4 h-4" />}
       footer={
         <>
@@ -39,9 +39,7 @@ export function ConfirmDeleteModal({ open, entityLabel, itemName, loading, onCan
             Are you sure you want to delete this {entityLabel.toLowerCase()}? This action cannot be undone.
           </p>
           {itemName && (
-            <p className="font-mono font-bold text-slate-800 bg-slate-100 border border-slate-200 rounded px-2 py-1 inline-block">
-              {itemName}
-            </p>
+            <p className="font-semibold text-[12.5px] text-slate-800 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 break-words">{itemName}</p>
           )}
         </div>
       </div>
