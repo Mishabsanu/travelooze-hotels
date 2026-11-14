@@ -160,6 +160,8 @@ export interface Booking {
   focPax?: number;
   /** Package price for the whole stay (before GST) */
   packageAmount?: number;
+  /** Room charges billed without GST */
+  noGst?: boolean;
   discount: number;
   gstAmount: number;
   /** Accommodation total incl. GST */

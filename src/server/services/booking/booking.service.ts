@@ -187,10 +187,12 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
   } else if (lines.some((l) => l.ratePerNight <= 0)) {
     throw new AppError(`No ${mealPlan} rate set for one of the room types`, 422, { mealPlan: "Rate missing" });
   }
+  const noGst = input.withGst === false;
   const price = priceRooms(
     lines.map((l) => ({ rate: l.ratePerNight, extraBeds: l.extraBeds, extraBedRate: l.extraBedRate })),
     nights,
-    discountPercent
+    discountPercent,
+    !noGst
   );
 
   const advance = round2(input.advance ?? 0);
@@ -226,6 +228,7 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
       discountPercent,
       ...(perHead ? { perHeadRate: round2(input.perHeadRate), focPax } : {}),
       ...(pkg ? { packageAmount: round2(input.packageAmount) } : {}),
+      noGst,
       payments: advance > 0 ? [{ amount: advance, mode: input.advanceMode as PaymentMode, reference: input.advanceRef, paidBy: billTo, by: user._id }] : [],
       notes: input.notes,
       createdBy: user._id,

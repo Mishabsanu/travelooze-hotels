@@ -150,6 +150,7 @@ function RateDialog({ b, close, busy, run, canDiscount }: { b: Booking; close: (
     perHeadRate: b.perHeadRate ?? 0,
     focPax: b.focPax ?? 0,
     packageAmount: b.packageAmount ?? 0,
+    withGst: !b.noGst,
     discountPercent: null,
   };
   return (
@@ -168,7 +169,7 @@ function RateDialog({ b, close, busy, run, canDiscount }: { b: Booking; close: (
             : pkg
               ? packageRates(pax, Number(values.packageAmount) || 0, b.nights).map((rate) => ({ rate }))
               : b.rooms.map((r) => ({ rate: r.ratePerNight, extraBeds: r.extraBeds, extraBedRate: r.extraBedRate }));
-          const price = priceRooms(lines, b.nights, pct);
+          const price = priceRooms(lines, b.nights, pct, values.withGst !== false);
           const gross = price.roomCharges + price.extraBedCharges;
           return (
             <Form noValidate className="space-y-3">
@@ -190,6 +191,10 @@ function RateDialog({ b, close, busy, run, canDiscount }: { b: Booking; close: (
                     <TextField name="focPax" label="Complimentary (FOC) Guests" type="number" min={0} step="1" />
                   </>
                 )}
+                <label className="sm:col-span-2 inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                  <input type="checkbox" checked={values.withGst !== false} onChange={(e) => setFieldValue("withGst", e.target.checked)} className="w-4 h-4 accent-brand" />
+                  With GST on room charges
+                </label>
                 {pkg && <TextField name="packageAmount" label={`Package Price (₹, ${b.nights} night${b.nights === 1 ? "" : "s"})`} type="number" min={0} step="1" required />}
                 {canDiscount && !tariffChange && (
                   <DiscountFields

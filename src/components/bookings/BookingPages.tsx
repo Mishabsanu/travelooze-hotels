@@ -325,7 +325,7 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                               <td className="px-2.5 py-1.5 text-right tabular-nums">{formatINR(g.rate)}</td>
                               <td className="whitespace-nowrap px-2.5 py-1.5 text-right tabular-nums">{g.extraBeds ? `${g.extraBeds} × ${formatINR(g.extraBedRate)}` : "—"}</td>
                               <td className="px-2.5 py-1.5 text-right">{b.nights}</td>
-                              <td className="px-2.5 py-1.5 text-right">{gstRateFor((g.rate + g.extraBeds * g.extraBedRate) * (1 - discountRatio))}%</td>
+                              <td className="px-2.5 py-1.5 text-right">{b.noGst ? 0 : gstRateFor((g.rate + g.extraBeds * g.extraBedRate) * (1 - discountRatio))}%</td>
                               <td className="px-2.5 py-1.5 text-right font-semibold tabular-nums">{formatINR((g.rate + g.extraBeds * g.extraBedRate) * b.nights * g.numbers.length)}</td>
                             </tr>
                           ))}
@@ -370,7 +370,7 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                         <Total label="Room charges" value={formatINR(b.roomCharges)} />
                         {b.extraBedCharges > 0 && <Total label="Extra beds" value={formatINR(b.extraBedCharges)} />}
                         {b.discount > 0 && <Total label="Discount" value={`− ${formatINR(b.discount)}`} />}
-                        <Total label="GST" value={formatINR(b.gstAmount)} />
+                        <Total label={b.noGst ? "GST (not charged)" : "GST"} value={formatINR(b.gstAmount)} />
                         <Total label="Accommodation" value={formatINR(b.total)} strong line />
                         {b.extrasTotal > 0 && <Total label="Extra charges" value={formatINR(b.extrasTotal)} />}
                         {b.extrasTotal > 0 && <Total label="Grand total" value={formatINR(b.grandTotal)} strong />}

@@ -56,7 +56,7 @@ export function buildInvoice(b: Booking): InvoiceFigures {
         `${b.nights} night${b.nights > 1 ? "s" : ""}`,
         net,
         net * b.nights,
-        gstRateFor(net)
+        b.noGst ? 0 : gstRateFor(net)
       )
     );
   }

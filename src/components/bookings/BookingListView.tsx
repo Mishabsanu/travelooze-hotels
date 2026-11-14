@@ -54,7 +54,8 @@ const pill = "inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] f
 /** The next step for a booking, right in the list: Check In (on/after arrival day), Check Out, Pay. Opens the booking with that pop-up. */
 function BookingRowActions({ b, user, today }: { b: Booking; user: SessionUser; today: string }) {
   const href = `${BOOKING_BASE}/${b._id}`;
-  const desk = can(user, "check_in_out", "update");
+  // Agent bookings are a record only: no check-in / check-out from the list
+  const desk = b.source !== "agent" && can(user, "check_in_out", "update");
   const arrived = b.checkIn.slice(0, 10) <= today;
   return (
     <div className="flex items-center justify-end gap-1.5">
@@ -186,6 +187,7 @@ export function BookingListView({ data, hotelOptions, agentOnly, itemName = "boo
           ) : (
             <span className="text-slate-300">—</span>
           ),
+        hiddenByDefault: true,
       },
       {
         key: "checkedOutAt",

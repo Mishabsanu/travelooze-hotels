@@ -25,7 +25,7 @@ export interface StayPrice {
  * Prices the accommodation. Used by the server (authoritative) and the booking form (live preview).
  * The GST slab is decided per room on its discounted nightly tariff INCLUDING extra beds.
  */
-export function priceRooms(lines: PriceLine[], nights: number, discountPercent: number): StayPrice {
+export function priceRooms(lines: PriceLine[], nights: number, discountPercent: number, withGst = true): StayPrice {
   let roomCharges = 0;
   let extraBedCharges = 0;
   let discount = 0;
@@ -38,7 +38,7 @@ export function priceRooms(lines: PriceLine[], nights: number, discountPercent: 
     roomCharges += l.rate * nights;
     extraBedCharges += beds * nights;
     discount += disc * nights;
-    gstAmount += round2((net * nights * gstRateFor(net)) / 100);
+    if (withGst) gstAmount += round2((net * nights * gstRateFor(net)) / 100);
   }
   roomCharges = round2(roomCharges);
   extraBedCharges = round2(extraBedCharges);

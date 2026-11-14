@@ -78,6 +78,8 @@ export const bookingSchema = Yup.object({
   billTo: Yup.string().oneOf(["guest", "agent"]).default("guest"),
   /** room = room tariff of the meal plan; per_head = rate per person per night; package = one price for the whole stay */
   rateType: Yup.string().oneOf(["room", "per_head", "package"]).default("room"),
+  /** Room charges with GST (default) or without (e.g. agent B2B rates quoted net) */
+  withGst: Yup.boolean().default(true),
   /** Package: one price for the whole stay (before GST, extra beds included) */
   packageAmount: Yup.number()
     .typeError("Enter a number")
@@ -148,6 +150,8 @@ export const checkInSchema = Yup.object({ at: momentField });
 export const rateSchema = Yup.object({
   mealPlan: Yup.string().oneOf(MEAL_PLAN_CODES, "Choose a meal plan").required(),
   rateType: Yup.string().oneOf(["room", "per_head", "package"]).default("room"),
+  /** Room charges with GST (default) or without (e.g. agent B2B rates quoted net) */
+  withGst: Yup.boolean().default(true),
   /** Package: one price for the whole stay (before GST, extra beds included) */
   packageAmount: Yup.number()
     .typeError("Enter a number")

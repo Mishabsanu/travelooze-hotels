@@ -88,6 +88,8 @@ export interface BookingDoc {
   focPax?: number;
   /** Package price for the whole stay (set = package pricing; room rates are derived from it) */
   packageAmount?: number;
+  /** Room charges billed without GST */
+  noGst?: boolean;
   discount: number;
   gstAmount: number;
   /** Accommodation total incl. GST (what an agent is billed) */
@@ -193,6 +195,7 @@ const BookingSchema = new Schema<BookingDoc>(
     perHeadRate: { type: Number, min: 0 },
     focPax: { type: Number, min: 0 },
     packageAmount: { type: Number, min: 0 },
+    noGst: { type: Boolean, default: false },
     discount: { type: Number, default: 0 },
     gstAmount: { type: Number, required: true },
     total: { type: Number, required: true },

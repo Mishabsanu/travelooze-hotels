@@ -28,7 +28,7 @@ export function BookingActions({ booking: b, today, autoOpen, side = false }: { 
   const router = useRouter();
   // Opened from the bookings list with ?do=checkin / checkout / pay: start with that pop-up
   const [dialog, setDialog] = useState<Dialog>(() => {
-    if (autoOpen === "checkin" && b.status === "confirmed" && b.checkIn.slice(0, 10) <= today) return "checkin";
+    if (autoOpen === "checkin" && b.source !== "agent" && b.status === "confirmed" && b.checkIn.slice(0, 10) <= today) return "checkin";
     if (autoOpen === "checkout" && b.status === "checked_in") return "checkout";
     if (autoOpen === "pay" && b.status !== "cancelled" && b.balance > 0) return "pay";
     if (autoOpen === "edit" && (b.status === "confirmed" || b.status === "checked_in") && canBooking(user, b.source, "update")) return "edit";
@@ -76,8 +76,9 @@ export function BookingActions({ booking: b, today, autoOpen, side = false }: { 
   const open = b.status === "confirmed" || b.status === "checked_in";
   const arrived = b.checkIn.slice(0, 10) <= today;
   const show = {
-    checkIn: b.status === "confirmed" && arrived && can(user, "check_in_out", "update"),
-    checkOut: b.status === "checked_in" && can(user, "check_in_out", "update"),
+    // Agent bookings only record the agent's booking: no check-in / check-out from here
+    checkIn: b.source !== "agent" && b.status === "confirmed" && arrived && can(user, "check_in_out", "update"),
+    checkOut: b.source !== "agent" && b.status === "checked_in" && can(user, "check_in_out", "update"),
     pay: b.status !== "cancelled" && b.balance > 0 && can(user, "payment", "create"),
     // Booking-wide ID upload only for older bookings (newer ones upload per guest in the Rooming List)
     id: open && can(user, "guest_id", "create") && b.idStatus.missing[0]?.startsWith("Lead guest"),
@@ -111,7 +112,7 @@ export function BookingActions({ booking: b, today, autoOpen, side = false }: { 
           Check In
         </Button>
       )}
-      {b.status === "confirmed" && !arrived && can(user, "check_in_out", "update") && (
+      {b.source !== "agent" && b.status === "confirmed" && !arrived && can(user, "check_in_out", "update") && (
         // Visible but locked until the arrival date, so staff know why they cannot check in yet
         <Button icon={<LogIn className="w-4 h-4" />} disabled title="Check-in opens on the arrival date. If the guest came early, change the booking dates first.">
           Check In (from {formatDay(b.checkIn)})

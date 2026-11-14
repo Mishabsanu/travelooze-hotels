@@ -106,7 +106,8 @@ export function repriceDoc(doc: InstanceType<typeof BookingModel>) {
   const price = priceRooms(
     doc.rooms.map((l) => ({ rate: l.ratePerNight, extraBeds: l.extraBeds ?? 0, extraBedRate: l.extraBedRate ?? 0 })),
     doc.nights,
-    discountPercentOf(doc)
+    discountPercentOf(doc),
+    !doc.noGst
   );
   doc.roomCharges = price.roomCharges;
   doc.extraBedCharges = price.extraBedCharges;

@@ -73,6 +73,7 @@ export function BookingForm(p: BookingFormProps) {
     perHeadRate: 0,
     focPax: 0,
     packageAmount: 0,
+    withGst: true,
     checkIn: p.preset?.checkIn ?? p.today,
     checkOut: p.preset?.checkOut ?? (p.preset?.checkIn ? nextDay(p.preset.checkIn) : p.tomorrow),
     mealPlan: "CP",
@@ -159,9 +160,10 @@ export function BookingForm(p: BookingFormProps) {
           if (perHead || pkg) return { rate: headRates[i] ?? 0 };
           return { rate: t?.rates?.[mealPlan] ?? 0, extraBeds: Number(roomLines[i]?.extraBeds) || 0, extraBedRate: t?.extraBedRates?.[mealPlan] ?? 0 };
         });
-        const price = priceRooms(priceLines, nights, discount);
+        const price = priceRooms(priceLines, nights, discount, values.withGst !== false);
         const gross = price.roomCharges + price.extraBedCharges;
-        const showCheckIn = !isAgent || values.checkIn === p.today;
+        // Agent bookings are a record of the agent's booking: no check-in from here
+        const showCheckIn = !isAgent;
 
         return (
           <Form noValidate>
@@ -268,6 +270,13 @@ export function BookingForm(p: BookingFormProps) {
                     <TextField name="focPax" label="Free Guests (FOC)" type="number" min={0} step="1" />
                   </>
                 )}
+                {isAgent && (
+                  <label className="md:col-span-2 lg:col-span-3 inline-flex items-center gap-2 justify-self-start rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                    <input type="checkbox" name="withGst" checked={values.withGst !== false} onChange={(e) => setFieldValue("withGst", e.target.checked)} className="w-4 h-4 accent-brand" />
+                    With GST
+                    <span className="font-normal text-slate-400">{values.withGst !== false ? "GST added on room charges" : "No GST on room charges"}</span>
+                  </label>
+                )}
                 {pkg && (
                   <TextField
                     name="packageAmount"
@@ -331,7 +340,7 @@ export function BookingForm(p: BookingFormProps) {
                       <SummaryRow k={perHead || pkg ? "Package charges" : "Room charges"} v={formatINR(price.roomCharges)} />
                       {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
                       {price.discount > 0 && <SummaryRow k={`Discount (${round2(discount)}%)`} v={`− ${formatINR(price.discount)}`} />}
-                      <SummaryRow k="GST" v={formatINR(price.gstAmount)} />
+                      <SummaryRow k={values.withGst === false ? "GST (not charged)" : "GST"} v={formatINR(price.gstAmount)} />
                       <tr className="bg-brand-light">
                         <td className="px-3 py-2 font-bold text-brand uppercase tracking-wider text-[11px]">Total</td>
                         <td className="px-3 py-2 text-right font-black text-base text-slate-900 tabular-nums">{formatINR(price.total)}</td>

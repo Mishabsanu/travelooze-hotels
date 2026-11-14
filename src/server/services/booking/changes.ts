@@ -245,6 +245,7 @@ export async function changeRate(id: string, input: RateInput, user: SessionUser
   }
   doc.mealPlan = mealPlan;
   if (input.discountPercent !== null) doc.discountPercent = input.discountPercent;
+  if (typeof input.withGst === "boolean") doc.noGst = !input.withGst;
   doc.markModified("rooms");
   repriceDoc(doc);
   const paid = round2(doc.payments.reduce((n, p) => n + p.amount, 0));
