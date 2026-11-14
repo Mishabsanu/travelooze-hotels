@@ -9,7 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { CHARGE_CATEGORIES, MEAL_PLANS, MEAL_PLAN_CODES, type ChargeCategory } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
 import type { AvailabilityType, Booking } from "@/lib/hotelTypes";
-import { perHeadRates, priceCharge, priceRooms, round2 } from "@/lib/pricing";
+import { packageRates, perHeadRates, priceCharge, priceRooms, round2 } from "@/lib/pricing";
 import { chargeSchema, datesSchema, rateSchema, type RateInput } from "@/lib/validation/booking.schema";
 import { apiRequest } from "@/services/apiClient";
 import { bookingApi } from "@/services/bookingApi";
@@ -142,52 +142,55 @@ const PLAN_OPTIONS = MEAL_PLAN_CODES.map((c) => ({ value: c, label: MEAL_PLANS[c
 
 /** Edit meal plan, rate basis (room tariff / per head) and discount; shows the new total before saving. */
 function RateDialog({ b, close, busy, run, canDiscount }: { b: Booking; close: () => void; busy: boolean; run: Props["run"]; canDiscount: boolean }) {
-  const isAgent = b.source === "agent";
   const gross0 = b.roomCharges + b.extraBedCharges;
   const currentPct = b.discountPercent ?? (gross0 ? round2((b.discount / gross0) * 100) : 0);
   const initial: RateInput = {
     mealPlan: b.mealPlan,
-    rateType: b.perHeadRate ? "per_head" : "room",
+    rateType: b.packageAmount ? "package" : b.perHeadRate ? "per_head" : "room",
     perHeadRate: b.perHeadRate ?? 0,
     focPax: b.focPax ?? 0,
+    packageAmount: b.packageAmount ?? 0,
     discountPercent: null,
   };
   return (
     <Modal open onClose={close} title="Edit Rate & Discount" subtitle={`${b.bookingNo} · now ${formatINR(b.total)} incl. GST`} icon={<BadgePercent className="w-4 h-4" />}>
       <Formik initialValues={initial} validationSchema={rateSchema} onSubmit={(v) => run(() => apiRequest(`/api/bookings/${b._id}/rate`, "POST", v), "Rate updated")}>
         {({ values, setFieldValue }) => {
-          const perHead = isAgent && values.rateType === "per_head";
+          const perHead = values.rateType === "per_head";
+          const pkg = values.rateType === "package";
           const typed = values.discountPercent === null || (values.discountPercent as unknown) === "" ? null : Number(values.discountPercent);
           const pct = typed ?? currentPct;
           const pax = b.rooms.map((r) => r.adults + r.children);
           // Preview: same meal plan on room tariff keeps the stored rates; per head is computed here
-          const tariffChange = !perHead && (values.mealPlan !== b.mealPlan || Boolean(b.perHeadRate));
+          const tariffChange = !perHead && !pkg && (values.mealPlan !== b.mealPlan || Boolean(b.perHeadRate) || Boolean(b.packageAmount));
           const lines = perHead
             ? perHeadRates(pax, Number(values.perHeadRate) || 0, Number(values.focPax) || 0).map((rate) => ({ rate }))
-            : b.rooms.map((r) => ({ rate: r.ratePerNight, extraBeds: r.extraBeds, extraBedRate: r.extraBedRate }));
+            : pkg
+              ? packageRates(pax, Number(values.packageAmount) || 0, b.nights).map((rate) => ({ rate }))
+              : b.rooms.map((r) => ({ rate: r.ratePerNight, extraBeds: r.extraBeds, extraBedRate: r.extraBedRate }));
           const price = priceRooms(lines, b.nights, pct);
           const gross = price.roomCharges + price.extraBedCharges;
           return (
             <Form noValidate className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <SelectField name="mealPlan" label="Meal Plan" required options={PLAN_OPTIONS} />
-                {isAgent && (
-                  <SelectField
-                    name="rateType"
-                    label="Rate Basis"
-                    required
-                    options={[
-                      { value: "room", label: "Room tariff" },
-                      { value: "per_head", label: "Per head (group / package)" },
-                    ]}
-                  />
-                )}
+                <SelectField
+                  name="rateType"
+                  label="Rate Basis"
+                  required
+                  options={[
+                    { value: "room", label: "Room tariff" },
+                    { value: "per_head", label: "Per head (group)" },
+                    { value: "package", label: "Package price (whole stay)" },
+                  ]}
+                />
                 {perHead && (
                   <>
                     <TextField name="perHeadRate" label="Rate per Head / Night (₹)" type="number" min={0} step="1" required />
                     <TextField name="focPax" label="Complimentary (FOC) Guests" type="number" min={0} step="1" />
                   </>
                 )}
+                {pkg && <TextField name="packageAmount" label={`Package Price (₹, ${b.nights} night${b.nights === 1 ? "" : "s"})`} type="number" min={0} step="1" required />}
                 {canDiscount && !tariffChange && (
                   <DiscountFields
                     gross={gross}

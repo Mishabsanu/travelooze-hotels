@@ -4,7 +4,7 @@ import { agentBookingsOnly, canBooking } from "@/lib/bookingAccess";
 import { BOOKING_STATUS, type MealPlan, type PaymentMode } from "@/lib/constants";
 import type { Booking } from "@/lib/hotelTypes";
 import { can } from "@/lib/permissions";
-import { perHeadRates, priceRooms, round2 } from "@/lib/pricing";
+import { packageRates, perHeadRates, priceRooms, round2 } from "@/lib/pricing";
 import { computeIdStatus } from "@/lib/rooming";
 import type { Paginated, SessionUser } from "@/lib/types";
 import type { BookingInput } from "@/lib/validation/booking.schema";
@@ -136,7 +136,7 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
     agent = isValidObjectId(input.agent) ? await Agent.findById(input.agent).lean() : null;
     if (!agent || agent.status !== "active") throw new AppError("Choose an active agent", 422, { agent: "Agent is inactive" });
     // Contract discount by default; the sales team may change it (or type an adjusted price) per booking
-    discountPercent = input.discountPercent ?? (input.rateType === "per_head" ? 0 : agent.discountPercent);
+    discountPercent = input.discountPercent ?? (input.rateType === "room" ? agent.discountPercent : 0);
   } else if (can(user, "room_type", "update")) {
     discountPercent = input.discountPercent ?? 0;
   }
@@ -159,7 +159,8 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
   });
 
   // Per-head (group package) rate: agreed per person per night, extra beds included, no contract discount
-  const perHead = source === "agent" && input.rateType === "per_head";
+  const perHead = input.rateType === "per_head";
+  const pkg = input.rateType === "package";
   const focPax = perHead ? Math.max(0, Math.floor(input.focPax ?? 0)) : 0;
   if (perHead) {
     const pax = lines.map((l) => l.adults + l.children);
@@ -167,6 +168,18 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
     if (!(input.perHeadRate > 0)) throw new AppError("Enter the per-head rate", 422, { perHeadRate: "Enter the per-head rate" });
     if (focPax >= totalPax) throw new AppError(`Complimentary guests (${focPax}) must be fewer than the ${totalPax} guests in the rooms`, 422, { focPax: "Too many" });
     const rates = perHeadRates(pax, input.perHeadRate, focPax);
+    lines.forEach((l, i) => {
+      l.ratePerNight = rates[i];
+      l.extraBedRate = 0;
+    });
+  } else if (pkg) {
+    // Package: one price for the whole stay, spread over nights and rooms; extra beds included
+    if (!(input.packageAmount > 0)) throw new AppError("Enter the package price", 422, { packageAmount: "Enter the package price" });
+    const rates = packageRates(
+      lines.map((l) => l.adults + l.children),
+      input.packageAmount,
+      nights
+    );
     lines.forEach((l, i) => {
       l.ratePerNight = rates[i];
       l.extraBedRate = 0;
@@ -212,6 +225,7 @@ export async function createBooking(input: BookingInput, user: SessionUser): Pro
       ...price,
       discountPercent,
       ...(perHead ? { perHeadRate: round2(input.perHeadRate), focPax } : {}),
+      ...(pkg ? { packageAmount: round2(input.packageAmount) } : {}),
       payments: advance > 0 ? [{ amount: advance, mode: input.advanceMode as PaymentMode, reference: input.advanceRef, paidBy: billTo, by: user._id }] : [],
       notes: input.notes,
       createdBy: user._id,

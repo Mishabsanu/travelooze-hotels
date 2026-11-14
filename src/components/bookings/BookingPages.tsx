@@ -232,6 +232,9 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                       <DetailItem label="Hotel Times" value={`In ${timeLabel(b.hotel?.checkInTime || "12:00")} · Out ${timeLabel(b.hotel?.checkOutTime || "11:00")}`} />
                       <DetailItem label="Nights / Guests" value={`${b.nights} night${b.nights === 1 ? "" : "s"} · ${paxLabel(b.adults, b.children)}`} />
                       <DetailItem label="Meal Plan" value={MEAL_PLANS[b.mealPlan].label} />
+                      {b.packageAmount ? (
+                        <DetailItem label="Package Price" value={`${formatINR(b.packageAmount)} for the whole stay (${b.nights} night${b.nights === 1 ? "" : "s"}, ${b.rooms.length} room${b.rooms.length === 1 ? "" : "s"}) · before GST`} />
+                      ) : null}
                       {b.perHeadRate ? (
                         <DetailItem
                           label="Group Rate"
@@ -240,6 +243,8 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                       ) : null}
                       {b.source === "agent" && <DetailItem label="Agent / Ref" value={`${b.agent?.name ?? "—"}${b.agentRef ? ` · ${b.agentRef}` : ""}`} />}
                       {b.source === "agent" && <DetailItem label="Bill To" value={b.billTo === "agent" ? "Agent" : "Guest"} />}
+                      <DetailItem label="Booked By" value={b.createdBy?.name ?? "—"} />
+                      <DetailItem label="Booked On" value={formatDateTime(b.createdAt)} />
                     </DetailSection>
 
                     {/* Guests (names, phones, IDs) are in the Rooming List; only older bookings kept an ID on the booking itself */}

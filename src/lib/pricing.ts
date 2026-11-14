@@ -74,3 +74,24 @@ export function perHeadRates(paxPerRoom: number[], perHead: number, focPax: numb
   rates[0] = round2(rates[0] + nightly - rates.reduce((s, r) => s + r, 0));
   return rates;
 }
+
+/**
+ * Package price: one agreed amount for the whole stay (before GST, extra beds included).
+ * Spread over the nights and over the rooms by how many people sleep in each.
+ */
+export function packageRates(paxPerRoom: number[], packageTotal: number, nights: number): number[] {
+  if (!paxPerRoom.length || packageTotal <= 0) return paxPerRoom.map(() => 0);
+  const nightly = round2(packageTotal / Math.max(1, nights));
+  const weights = paxPerRoom.some((n) => n > 0) ? paxPerRoom : paxPerRoom.map(() => 1);
+  const wsum = weights.reduce((s, n) => s + n, 0);
+  const rates = weights.map((w) => round2((nightly * w) / wsum));
+  rates[0] = round2(rates[0] + nightly - rates.reduce((s, r) => s + r, 0));
+  return rates;
+}
+
+/** "Room tariff", "₹450 per head", "Package ₹50,000" — for notes / labels */
+export function rateBasisLabel(b: { perHeadRate?: number | null; packageAmount?: number | null }): string {
+  if (b.packageAmount) return `package ₹${b.packageAmount}`;
+  if (b.perHeadRate) return `₹${b.perHeadRate}/head`;
+  return "room tariff";
+}

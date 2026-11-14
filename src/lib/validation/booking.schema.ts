@@ -76,8 +76,14 @@ export const bookingSchema = Yup.object({
     .when("source", { is: "agent", then: (s) => s.required("Choose an agent").matches(/^[a-f0-9]{24}$/i, "Choose an agent") }),
   agentRef: optionalText("Agent reference", 60),
   billTo: Yup.string().oneOf(["guest", "agent"]).default("guest"),
-  /** room = room tariff of the meal plan; per_head = group / package rate per person per night (agent bookings) */
-  rateType: Yup.string().oneOf(["room", "per_head"]).default("room"),
+  /** room = room tariff of the meal plan; per_head = rate per person per night; package = one price for the whole stay */
+  rateType: Yup.string().oneOf(["room", "per_head", "package"]).default("room"),
+  /** Package: one price for the whole stay (before GST, extra beds included) */
+  packageAmount: Yup.number()
+    .typeError("Enter a number")
+    .min(0, "Cannot be negative")
+    .default(0)
+    .when("rateType", { is: "package", then: (s) => s.moreThan(0, "Enter the package price") }),
   perHeadRate: Yup.number()
     .typeError("Enter a number")
     .min(0, "Cannot be negative")
@@ -141,7 +147,13 @@ export const checkInSchema = Yup.object({ at: momentField });
 /** Edit the price of a booking: meal plan, rate basis, per-head rate, discount */
 export const rateSchema = Yup.object({
   mealPlan: Yup.string().oneOf(MEAL_PLAN_CODES, "Choose a meal plan").required(),
-  rateType: Yup.string().oneOf(["room", "per_head"]).default("room"),
+  rateType: Yup.string().oneOf(["room", "per_head", "package"]).default("room"),
+  /** Package: one price for the whole stay (before GST, extra beds included) */
+  packageAmount: Yup.number()
+    .typeError("Enter a number")
+    .min(0, "Cannot be negative")
+    .default(0)
+    .when("rateType", { is: "package", then: (s) => s.moreThan(0, "Enter the package price") }),
   perHeadRate: Yup.number()
     .typeError("Enter a number")
     .min(0, "Cannot be negative")

@@ -217,7 +217,16 @@ export function BookingListView({ data, hotelOptions, agentOnly, itemName = "boo
           </span>
         ),
       },
-      { key: "createdBy", label: "Booked By", sortKey: false, hiddenByDefault: true, render: (r) => r.createdBy?.name ?? "—" },
+      {
+        key: "createdAt",
+        label: "Booked",
+        render: (r) => (
+          <span className="flex flex-col">
+            <span className="font-semibold text-slate-800">{r.createdBy?.name ?? "—"}</span>
+            <span className="text-[10.5px] text-slate-400">{formatDateTime(r.createdAt)}</span>
+          </span>
+        ),
+      },
     ],
     []
   );

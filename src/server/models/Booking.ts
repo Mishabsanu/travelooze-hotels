@@ -86,6 +86,8 @@ export interface BookingDoc {
   perHeadRate?: number;
   /** Complimentary guests, not charged */
   focPax?: number;
+  /** Package price for the whole stay (set = package pricing; room rates are derived from it) */
+  packageAmount?: number;
   discount: number;
   gstAmount: number;
   /** Accommodation total incl. GST (what an agent is billed) */
@@ -190,6 +192,7 @@ const BookingSchema = new Schema<BookingDoc>(
     discountPercent: { type: Number, min: 0, max: 100 },
     perHeadRate: { type: Number, min: 0 },
     focPax: { type: Number, min: 0 },
+    packageAmount: { type: Number, min: 0 },
     discount: { type: Number, default: 0 },
     gstAmount: { type: Number, required: true },
     total: { type: Number, required: true },

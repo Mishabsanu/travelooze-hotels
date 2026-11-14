@@ -12,7 +12,7 @@ import { useApiSubmit } from "@/hooks/useApiSubmit";
 import { MEAL_PLANS, MEAL_PLAN_CODES, PAYMENT_MODES, PAYMENT_REF, toOptions, type MealPlan, type PaymentMode } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
 import type { AvailabilityType, Booking } from "@/lib/hotelTypes";
-import { perHeadRates, priceRooms, round2 } from "@/lib/pricing";
+import { packageRates, perHeadRates, priceRooms, round2 } from "@/lib/pricing";
 import type { Option } from "@/lib/types";
 import { bookingSchema, type BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
@@ -72,6 +72,7 @@ export function BookingForm(p: BookingFormProps) {
     rateType: "room",
     perHeadRate: 0,
     focPax: 0,
+    packageAmount: 0,
     checkIn: p.preset?.checkIn ?? p.today,
     checkOut: p.preset?.checkOut ?? (p.preset?.checkIn ? nextDay(p.preset.checkIn) : p.tomorrow),
     mealPlan: "CP",
@@ -137,9 +138,10 @@ export function BookingForm(p: BookingFormProps) {
     <Formik initialValues={initialValues} validationSchema={bookingSchema} onSubmit={onSubmit}>
       {({ isSubmitting, values, setFieldValue }) => {
         const agent = p.agentOptions.find((a) => a.value === values.agent);
-        const perHead = isAgent && values.rateType === "per_head";
-        // Default: agent contract % on room tariff, 0 on per-head / walk-in. Editable by the booking team.
-        const defaultDiscount = isAgent && !perHead ? agent?.discountPercent ?? 0 : 0;
+        const perHead = values.rateType === "per_head";
+        const pkg = values.rateType === "package";
+        // Default: agent contract % on room tariff, 0 on per-head / package / walk-in. Editable by the booking team.
+        const defaultDiscount = isAgent && values.rateType === "room" ? agent?.discountPercent ?? 0 : 0;
         const typed = values.discountPercent === null || (values.discountPercent as unknown) === "" ? null : Number(values.discountPercent);
         const canAdjust = isAgent || p.canDiscount;
         const discount = canAdjust ? (typed ?? defaultDiscount) : 0;
@@ -147,10 +149,14 @@ export function BookingForm(p: BookingFormProps) {
         const roomLines = values.rooms.map((id) => values.lines.find((l) => l.room === id));
         const pax = roomLines.map((l) => (Number(l?.adults) || 0) + (Number(l?.children) || 0));
         const totalPax = pax.reduce((s, n) => s + n, 0);
-        const headRates = perHead ? perHeadRates(pax, Number(values.perHeadRate) || 0, Number(values.focPax) || 0) : [];
+        const headRates = perHead
+          ? perHeadRates(pax, Number(values.perHeadRate) || 0, Number(values.focPax) || 0)
+          : pkg
+            ? packageRates(pax, Number(values.packageAmount) || 0, nights)
+            : [];
         const priceLines = values.rooms.map((id, i) => {
           const t = typeOf.get(id);
-          if (perHead) return { rate: headRates[i] ?? 0 };
+          if (perHead || pkg) return { rate: headRates[i] ?? 0 };
           return { rate: t?.rates?.[mealPlan] ?? 0, extraBeds: Number(roomLines[i]?.extraBeds) || 0, extraBedRate: t?.extraBedRates?.[mealPlan] ?? 0 };
         });
         const price = priceRooms(priceLines, nights, discount);
@@ -234,12 +240,13 @@ export function BookingForm(p: BookingFormProps) {
               </FormSection>
 
               <FormSection title="3 · Price & Payment">
-                {isAgent && (
+                {(
                   <FormField label="Rate" className="md:col-span-2 lg:col-span-3">
                     <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5" role="radiogroup" aria-label="Rate basis">
                       {[
                         { v: "room", l: "Room rate" },
                         { v: "per_head", l: "Per head (group)" },
+                        { v: "package", l: "Package price" },
                       ].map((o) => (
                         <button
                           key={o.v}
@@ -260,6 +267,17 @@ export function BookingForm(p: BookingFormProps) {
                     <TextField name="perHeadRate" label="Rate per Head / Night (₹)" type="number" min={0} step="1" required hint={`${values.mealPlan}, before GST`} />
                     <TextField name="focPax" label="Free Guests (FOC)" type="number" min={0} step="1" />
                   </>
+                )}
+                {pkg && (
+                  <TextField
+                    name="packageAmount"
+                    label="Package Price (₹, whole stay)"
+                    type="number"
+                    min={0}
+                    step="1"
+                    required
+                    hint={`${nights || 0} night${nights === 1 ? "" : "s"}, all rooms, before GST`}
+                  />
                 )}
                 {canAdjust && (
                   <DiscountFields
@@ -309,7 +327,8 @@ export function BookingForm(p: BookingFormProps) {
                           v={`${formatINR(Number(values.perHeadRate) || 0)} × ${Math.max(0, totalPax - (Number(values.focPax) || 0))} × ${nights || 0}${Number(values.focPax) ? ` (+${values.focPax} free)` : ""}`}
                         />
                       )}
-                      <SummaryRow k={perHead ? "Package charges" : "Room charges"} v={formatINR(price.roomCharges)} />
+                      {pkg && <SummaryRow k={`Package for ${nights || 0} night${nights === 1 ? "" : "s"}, ${values.rooms.length} room${values.rooms.length === 1 ? "" : "s"}`} v={formatINR(Number(values.packageAmount) || 0)} />}
+                      <SummaryRow k={perHead || pkg ? "Package charges" : "Room charges"} v={formatINR(price.roomCharges)} />
                       {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
                       {price.discount > 0 && <SummaryRow k={`Discount (${round2(discount)}%)`} v={`− ${formatINR(price.discount)}`} />}
                       <SummaryRow k="GST" v={formatINR(price.gstAmount)} />

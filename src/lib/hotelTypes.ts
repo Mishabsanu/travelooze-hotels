@@ -158,6 +158,8 @@ export interface Booking {
   perHeadRate?: number;
   /** Complimentary guests on a per-head booking */
   focPax?: number;
+  /** Package price for the whole stay (before GST) */
+  packageAmount?: number;
   discount: number;
   gstAmount: number;
   /** Accommodation total incl. GST */
