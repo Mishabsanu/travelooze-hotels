@@ -57,7 +57,7 @@ export interface DayRoom {
   state: "booked" | "free" | "maintenance";
   arriving: boolean;
   /** A guest leaves this room that morning (room may be booked again for the night) */
-  departing: { _id: string; guest: string; bookingNo: string; status: BookingStatus } | null;
+  departing: { _id: string; guest: string; bookingNo: string } | null;
   booking: {
     _id: string;
     bookingNo: string;
@@ -100,13 +100,13 @@ export async function getDayRooms(hotelId: string, date: Date): Promise<DayRoom[
       .populate({ path: "booking", select: "bookingNo status source guest.name checkIn checkOut rooms.room rooms.adults rooms.children adults children" })
       .lean<NightBooking[]>(),
     Booking.find({ hotel: hotelId, checkOut: date, status: { $in: ["confirmed", "checked_in", "checked_out"] } })
-      .select("bookingNo guest.name rooms.room status")
+      .select("bookingNo guest.name rooms.room")
       .lean(),
   ]);
   const typeName = new Map(types.map((t) => [String(t._id), t.name]));
   const night = new Map(nights.filter((n) => n.booking).map((n) => [String(n.room), n.booking!]));
-  const out = new Map<string, { _id: string; guest: string; bookingNo: string; status: BookingStatus }>();
-  for (const b of leaving) for (const r of b.rooms) out.set(String(r.room), { _id: String(b._id), guest: b.guest.name, bookingNo: b.bookingNo, status: b.status as BookingStatus });
+  const out = new Map<string, { _id: string; guest: string; bookingNo: string }>();
+  for (const b of leaving) for (const r of b.rooms) out.set(String(r.room), { _id: String(b._id), guest: b.guest.name, bookingNo: b.bookingNo });
 
   return rooms.map((r) => {
     const id = String(r._id);
