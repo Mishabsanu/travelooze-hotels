@@ -52,7 +52,7 @@ export function BookingActions({ booking: b, today, autoOpen, side = false }: { 
     setBusy(true);
     try {
       await apiRequest(`/api/bookings/${b._id}`, "DELETE");
-      toast.success(`Booking ${b.bookingNo} deleted`);
+      toast.success(`Booking ${b.bookingNo} moved to the Recycle Bin`);
       router.push(BOOKING_BASE);
       router.refresh();
     } catch (e) {
@@ -172,6 +172,7 @@ export function BookingActions({ booking: b, today, autoOpen, side = false }: { 
         <p className="text-xs text-slate-600">The booking goes back to <b>Confirmed</b> and the check-in time is cleared. Guests, payments and charges stay as they are.</p>
       </Modal>
       <ConfirmDeleteModal
+        note="It goes to the Recycle Bin and can be restored from there."
         open={confirmDelete}
         entityLabel="Booking"
         itemName={

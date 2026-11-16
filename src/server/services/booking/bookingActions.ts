@@ -8,12 +8,13 @@ import { round2 } from "@/lib/pricing";
 import type { SessionUser } from "@/lib/types";
 import type { CancelInput, PaymentInput } from "@/lib/validation/booking.schema";
 import { parseIstLocal } from "@/lib/stayTimes";
+import { canAccessHotel, hotelScope } from "../../auth/session";
 import { AppError } from "../../http/errors";
 import { Booking as BookingModel } from "../../models/Booking";
 import { Room } from "../../models/Room";
 import { saveIdFile } from "../../storage";
 import { todayIST } from "../stay";
-import { releaseRoomNights } from "./availability";
+import { holdRoomNights, releaseRoomNights } from "./availability";
 import { getBooking } from "./booking.service";
 
 const forbid = (what: string) => new AppError(`You do not have permission to ${what}`, 403);
@@ -157,8 +158,88 @@ export async function deleteBooking(id: string, user: SessionUser): Promise<void
   if (blocked) throw new AppError(blocked, canBooking(user, doc.source, "delete") ? 409 : 403);
   // In-house guest: the room becomes free, mark it for cleaning
   if (doc.status === "checked_in") await Room.updateMany({ _id: { $in: doc.rooms.map((l) => l.room) } }, { housekeeping: "cleaning" });
+  // Recycle bin: hidden everywhere, its rooms free again; can be restored
   await releaseRoomNights(doc._id);
-  await BookingModel.deleteOne({ _id: doc._id });
+  doc.deletedAt = new Date();
+  doc.deletedBy = user._id as never;
+  doc.notes = [doc.notes, `Moved to the recycle bin by ${user.name}`].filter(Boolean).join("\n");
+  await doc.save();
+}
+
+/** Bookings in the recycle bin the user may see (their hotels, booking kinds they may delete). */
+export async function listBin(user: SessionUser) {
+  const sources = (["walkin", "agent"] as const).filter((s) => canBooking(user, s, "delete"));
+  if (!sources.length) throw forbid("open the recycle bin");
+  const docs = await BookingModel.find({ ...hotelScope(user), deletedAt: { $ne: null }, source: { $in: sources } })
+    .setOptions({ withDeleted: true })
+    .sort({ deletedAt: -1 })
+    .limit(500)
+    .select("bookingNo source guest.name hotel agent agentRef checkIn checkOut nights rooms.roomNumber total extrasTotal status deletedAt deletedBy")
+    .populate([
+      { path: "hotel", select: "name" },
+      { path: "agent", select: "name" },
+      { path: "deletedBy", select: "name" },
+    ])
+    .lean();
+  return docs.map((d) => {
+    const b = d as unknown as {
+      _id: unknown; bookingNo: string; source: string; guest: { name: string }; hotel?: { name: string }; agent?: { name: string } | null; agentRef?: string;
+      checkIn: Date; checkOut: Date; nights: number; rooms: { roomNumber: string }[]; total: number; extrasTotal?: number; status: string; deletedAt: Date; deletedBy?: { name: string } | null;
+    };
+    return {
+      _id: String(b._id),
+      bookingNo: b.bookingNo,
+      source: b.source,
+      guest: b.guest?.name ?? "",
+      hotel: b.hotel?.name ?? "",
+      agent: b.agent?.name ?? "",
+      agentRef: b.agentRef ?? "",
+      checkIn: b.checkIn.toISOString(),
+      checkOut: b.checkOut.toISOString(),
+      nights: b.nights,
+      rooms: b.rooms.map((r) => r.roomNumber),
+      total: b.total + (b.extrasTotal ?? 0),
+      status: b.status,
+      deletedAt: b.deletedAt.toISOString(),
+      deletedBy: b.deletedBy?.name ?? "",
+    };
+  });
+}
+export type BinBooking = Awaited<ReturnType<typeof listBin>>[number];
+
+async function loadBinned(id: string, user: SessionUser) {
+  const doc = await BookingModel.findOne({ _id: id, deletedAt: { $ne: null } }).setOptions({ withDeleted: true });
+  if (!doc) throw new AppError("Booking not found in the recycle bin", 404);
+  if (!canAccessHotel(user, doc.hotel) || !canBooking(user, doc.source, "delete")) throw new AppError("Booking not found in the recycle bin", 404);
+  return doc;
+}
+
+/** Restore from the bin: its rooms are held again (fails if someone else booked them meanwhile). */
+export async function restoreBooking(id: string, user: SessionUser): Promise<Booking> {
+  const doc = await loadBinned(id, user);
+  if (doc.status === "confirmed" || doc.status === "checked_in") {
+    try {
+      await holdRoomNights(doc._id, String(doc.hotel), doc.rooms.map((l) => String(l.room)), doc.checkIn, doc.checkOut);
+    } catch (e) {
+      if (e instanceof AppError && e.status === 409) {
+        throw new AppError("Its rooms were booked by someone else for these dates, so it cannot be restored. Make a new booking instead.", 409);
+      }
+      throw e;
+    }
+  }
+  doc.deletedAt = undefined;
+  doc.deletedBy = undefined;
+  doc.notes = [doc.notes, `Restored from the recycle bin by ${user.name}`].filter(Boolean).join("\n");
+  await doc.save();
+  return getBooking(id, user);
+}
+
+/** Delete forever (Super Admin only). */
+export async function purgeBooking(id: string, user: SessionUser): Promise<void> {
+  if (!user.isSuperAdmin) throw forbid("delete bookings for good");
+  const doc = await loadBinned(id, user);
+  await releaseRoomNights(doc._id);
+  await BookingModel.deleteOne({ _id: doc._id }).setOptions({ withDeleted: true });
 }
 
 /** Undo a check-in done by mistake: the booking goes back to Confirmed (nothing else changes). */

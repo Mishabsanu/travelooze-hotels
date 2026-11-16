@@ -1,7 +1,6 @@
-import { BookingListPage } from "@/components/bookings/BookingPages";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Agent Bookings" };
-
-export default function Page({ searchParams }: PageProps<"/dashboard/sales/agent-bookings">) {
-  return <BookingListPage searchParams={searchParams} agentOnly />;
+/** The agent bookings list is the main Bookings list filtered to agents. */
+export default function Page() {
+  redirect("/dashboard/front-office/bookings?source=agent");
 }

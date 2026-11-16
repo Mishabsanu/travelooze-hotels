@@ -89,7 +89,7 @@ export async function updateAgent(id: string, input: AgentInput): Promise<Agent>
 
 export async function deleteAgent(id: string): Promise<void> {
   await getAgent(id);
-  if (await Booking.exists({ agent: id })) throw new AppError("This agent has bookings. Mark it inactive instead.", 409);
+  if (await Booking.exists({ agent: id }).setOptions({ withDeleted: true })) throw new AppError("This agent has bookings. Mark it inactive instead.", 409);
   await AgentModel.findByIdAndDelete(id);
 }
 

@@ -67,7 +67,7 @@ export async function createHotel(input: HotelInput, user: SessionUser): Promise
 
 export async function updateHotel(id: string, input: HotelInput, user: SessionUser): Promise<Hotel> {
   const existing = await getHotel(id, user);
-  if (existing.code !== input.code && (await Booking.exists({ hotel: id }))) {
+  if (existing.code !== input.code && (await Booking.exists({ hotel: id }).setOptions({ withDeleted: true }))) {
     throw new AppError("The code is used in existing booking numbers and cannot be changed", 409, { code: "Cannot change after bookings exist" });
   }
   await HotelModel.updateOne({ _id: id }, input, { runValidators: true });
@@ -76,7 +76,7 @@ export async function updateHotel(id: string, input: HotelInput, user: SessionUs
 
 export async function deleteHotel(id: string, user: SessionUser): Promise<void> {
   await getHotel(id, user);
-  if (await Booking.exists({ hotel: id })) {
+  if (await Booking.exists({ hotel: id }).setOptions({ withDeleted: true })) {
     throw new AppError("This hotel has bookings. Mark it inactive instead of deleting it.", 409);
   }
   await Promise.all([Room.deleteMany({ hotel: id }), RoomType.deleteMany({ hotel: id })]);

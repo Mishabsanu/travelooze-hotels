@@ -14,13 +14,15 @@ interface RowActionsProps {
   /** API endpoint to DELETE, e.g. /api/customers/<id> */
   deleteUrl?: string;
   entityLabel: string;
+  /** Text under the delete question (default: cannot be undone) */
+  deleteNote?: string;
   itemName: string;
 }
 
 const iconBtn = "p-1 rounded text-slate-400 transition-colors";
 
 /** View / edit / delete buttons; only rendered for the actions the caller passes in. */
-export function RowActions({ viewHref, editHref, deleteUrl, entityLabel, itemName }: RowActionsProps) {
+export function RowActions({ viewHref, editHref, deleteUrl, entityLabel, itemName, deleteNote }: RowActionsProps) {
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -63,6 +65,7 @@ export function RowActions({ viewHref, editHref, deleteUrl, entityLabel, itemNam
         </button>
       )}
       <ConfirmDeleteModal
+        note={deleteNote}
         open={confirmOpen}
         entityLabel={entityLabel}
         itemName={itemName}

@@ -106,6 +106,9 @@ export interface BookingDoc {
   checkedInAt?: Date;
   checkedOutAt?: Date;
   createdBy?: Types.ObjectId;
+  /** Recycle bin: set = deleted (hidden everywhere, rooms released); restore clears it */
+  deletedAt?: Date;
+  deletedBy?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -209,10 +212,30 @@ const BookingSchema = new Schema<BookingDoc>(
     checkedInAt: Date,
     checkedOutAt: Date,
     createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+    deletedAt: { type: Date },
+    deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );
 BookingSchema.index({ createdAt: -1 });
+BookingSchema.index({ deletedAt: 1 });
+
+/*
+ * Recycle bin: binned bookings are invisible to every query unless it opts in with
+ * .setOptions({ withDeleted: true }) (bin list, restore, "is this hotel / agent in use" checks).
+ */
+type BinAware = { getOptions(): { withDeleted?: boolean }; getFilter(): Record<string, unknown>; where(f: Record<string, unknown>): unknown };
+function hideBinned(this: BinAware) {
+  if (this.getOptions().withDeleted) return;
+  if (!("deletedAt" in this.getFilter())) this.where({ deletedAt: null });
+}
+for (const op of ["find", "findOne", "findOneAndUpdate", "countDocuments", "updateMany", "updateOne"] as const) {
+  BookingSchema.pre(op, hideBinned as never);
+}
+BookingSchema.pre("aggregate", function () {
+  const opts = this.options as { withDeleted?: boolean };
+  if (!opts.withDeleted) this.pipeline().unshift({ $match: { deletedAt: null } });
+});
 // Indexes for the busiest screens (bookings list, arrivals / departures, agent balances)
 BookingSchema.index({ hotel: 1, checkIn: -1 });
 BookingSchema.index({ hotel: 1, status: 1, checkIn: 1 });

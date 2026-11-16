@@ -1,5 +1,5 @@
 import { TableSkeleton } from "@/components/ui/Skeleton";
 
 export default function Loading() {
-  return <TableSkeleton />;
+  return <TableSkeleton rows={6} cols={8} />;
 }

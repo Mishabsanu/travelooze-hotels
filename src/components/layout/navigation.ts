@@ -40,11 +40,12 @@ export const NAV_MODULES: NavModule[] = [
     icon: BedDouble,
     basePath: "/dashboard/front-office",
     items: [
-      { label: "Bookings", href: "/dashboard/front-office/bookings", permission: "booking" },
+      { label: "Bookings", href: "/dashboard/front-office/bookings", permission: "booking", orPermission: "agent_booking" },
       { label: "New Booking", href: "/dashboard/front-office/bookings/new", permission: "booking" },
       { label: "Calendar", href: "/dashboard/front-office/calendar", permission: "booking", orPermission: "agent_booking" },
       { label: "Booking Grid", href: "/dashboard/front-office/availability", permission: "booking", orPermission: "agent_booking" },
       { label: "Room Status", href: "/dashboard/front-office/room-status", permission: "booking" },
+      { label: "Recycle Bin", href: "/dashboard/front-office/recycle-bin", permission: "booking", orPermission: "agent_booking" },
     ],
   },
   {
@@ -53,8 +54,6 @@ export const NAV_MODULES: NavModule[] = [
     icon: Handshake,
     basePath: "/dashboard/sales",
     items: [
-      { label: "Agent Bookings", href: "/dashboard/sales/agent-bookings", permission: "agent_booking" },
-      { label: "New Agent Booking", href: "/dashboard/sales/agent-bookings/new", permission: "agent_booking" },
       { label: "Agents Master", href: "/dashboard/sales/agents", permission: "agent" },
     ],
   },

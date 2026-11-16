@@ -176,7 +176,7 @@ export async function setHousekeeping(id: string, housekeeping: string, user: Se
 
 export async function deleteRoom(id: string, user: SessionUser): Promise<void> {
   await getRoom(id, user);
-  if (await Booking.exists({ "rooms.room": id })) {
+  if (await Booking.exists({ "rooms.room": id }).setOptions({ withDeleted: true })) {
     throw new AppError("This room appears in bookings. Mark it inactive instead.", 409);
   }
   await RoomModel.findByIdAndDelete(id);

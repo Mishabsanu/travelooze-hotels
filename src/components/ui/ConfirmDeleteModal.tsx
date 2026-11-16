@@ -11,9 +11,11 @@ interface ConfirmDeleteModalProps {
   loading?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
+  /** Replaces "This action cannot be undone." (e.g. "It goes to the Recycle Bin.") */
+  note?: string;
 }
 
-export function ConfirmDeleteModal({ open, entityLabel, itemName, loading, onCancel, onConfirm }: ConfirmDeleteModalProps) {
+export function ConfirmDeleteModal({ open, entityLabel, itemName, loading, onCancel, onConfirm, note }: ConfirmDeleteModalProps) {
   return (
     <Modal
       open={open}
@@ -36,7 +38,7 @@ export function ConfirmDeleteModal({ open, entityLabel, itemName, loading, onCan
         <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
         <div className="space-y-2">
           <p>
-            Are you sure you want to delete this {entityLabel.toLowerCase()}? This action cannot be undone.
+            Are you sure you want to delete this {entityLabel.toLowerCase()}? {note ?? "This action cannot be undone."}
           </p>
           {itemName && (
             <p className="font-semibold text-[12.5px] text-slate-800 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 break-words">{itemName}</p>

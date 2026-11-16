@@ -25,6 +25,8 @@ import { BookingListView, BookingStatusBadge, SourceBadge } from "./BookingListV
 import { FolioList } from "./FolioList";
 import { InvoiceSheet } from "./InvoiceSheet";
 import { InvoiceToolbar } from "./InvoiceToolbar";
+import { RecycleBin } from "./RecycleBin";
+import { listBin } from "@/server/services/booking/bookingActions";
 import { VoucherSheet } from "./VoucherSheet";
 import { VoucherToolbar } from "./VoucherToolbar";
 import { RoomingList } from "./RoomingList";
@@ -49,19 +51,29 @@ export async function BookingListPage({ searchParams, agentOnly = false }: { sea
     // Just saved from the booking form: show its invoice right here
     createdId ? getBooking(createdId, user).catch(() => null) : null,
   ]);
-  const createSource = onlyAgent ? "agent" : "walkin";
-  const createHref = onlyAgent ? "/dashboard/sales/agent-bookings/new" : `${BOOKING_BASE}/new`;
+  const canWalkin = canBooking(user, "walkin", "create");
+  const canAgent = canBooking(user, "agent", "create");
   return (
     <>
       <PageHeader
-        title={onlyAgent ? "Agent Bookings" : "Bookings"}
-        description={onlyAgent ? "B2B bookings made by the sales team for agents" : "Walk-in and agent bookings of your hotels"}
+        title="Bookings"
+        description={onlyAgent ? "Agent (B2B) bookings of your hotels" : "Walk-in and agent bookings of your hotels · filter by Walk-in / Agent"}
         actions={
-          canBooking(user, createSource, "create") && (
-            <Link href={createHref} className={btnClass}>
-              <Plus className="w-4 h-4" />
-              {onlyAgent ? "New Agent Booking" : "New Booking"}
-            </Link>
+          (canWalkin || canAgent) && (
+            <div className="flex flex-wrap gap-2">
+              {canWalkin && (
+                <Link href={`${BOOKING_BASE}/new`} className={btnClass}>
+                  <Plus className="w-4 h-4" />
+                  New Walk-in Booking
+                </Link>
+              )}
+              {canAgent && (
+                <Link href="/dashboard/sales/agent-bookings/new" className={`${btnClass} !bg-white !text-brand border border-brand-border hover:!bg-brand-light`}>
+                  <Plus className="w-4 h-4" />
+                  New Agent Booking
+                </Link>
+              )}
+            </div>
           )
         }
       />
@@ -134,7 +146,7 @@ export async function BookingCreatePage({ searchParams, source }: { searchParams
       isSuperAdmin={user.isSuperAdmin}
       today={toDayString(today)}
       tomorrow={toDayString(addDays(today, 1))}
-      backHref={source === "agent" ? "/dashboard/sales/agent-bookings" : BOOKING_BASE}
+      backHref={BOOKING_BASE}
     />
   );
 }
@@ -172,7 +184,7 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
           {/* Header */}
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-4 sm:px-6">
             <Link
-              href={b.source === "agent" && agentBookingsOnly(user) ? "/dashboard/sales/agent-bookings" : BOOKING_BASE}
+              href={BOOKING_BASE}
               title="Back to list"
               className="no-print shrink-0 rounded-lg bg-slate-100 p-2 text-slate-600 transition hover:bg-slate-200"
             >
@@ -428,6 +440,19 @@ function Total({ label, value, strong, line, tone = "" }: { label: string; value
       <dt className={strong ? "font-bold text-slate-800" : "text-slate-500"}>{label}</dt>
       <dd className={`tabular-nums ${strong ? "text-sm font-black" : "font-semibold"} ${tone || "text-slate-800"}`}>{value}</dd>
     </div>
+  );
+}
+
+/** Recycle Bin: deleted bookings (restore / delete forever) */
+export async function RecycleBinPage() {
+  const user = await requireUser();
+  if (!canBooking(user, "walkin", "delete") && !canBooking(user, "agent", "delete")) return <AccessDenied />;
+  const items = await listBin(user);
+  return (
+    <>
+      <PageHeader title="Recycle Bin" description="Deleted bookings. Restore one to bring it back (its rooms are booked again if still free)." />
+      <RecycleBin items={items} canPurge={user.isSuperAdmin} />
+    </>
   );
 }
 

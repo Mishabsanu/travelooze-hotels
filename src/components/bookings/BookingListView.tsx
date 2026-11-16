@@ -1,16 +1,18 @@
 "use client";
 
-import { Eye } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
+import { useSession } from "@/components/providers/SessionProvider";
 import { DataTable } from "@/components/table/DataTable";
+import { RowActions } from "@/components/table/RowActions";
 import type { Column, FilterConfig } from "@/components/table/types";
 import { Badge, type BadgeVariant } from "@/components/ui/Badge";
 import { BOOKING_STATUS, MEAL_PLAN_CODES, toOptions, type BookingStatus } from "@/lib/constants";
 import { formatDateTime, formatDay, formatINR, paxLabel } from "@/lib/format";
 import { isEarlyCheckIn, isLateCheckOut, timeLabel } from "@/lib/stayTimes";
 import type { Booking } from "@/lib/hotelTypes";
-import type { Option, Paginated } from "@/lib/types";
+import { canBooking, deleteBlocker } from "@/lib/bookingAccess";
+import type { Option, Paginated, SessionUser } from "@/lib/types";
 
 import { BOOKING_BASE } from "./bookingConfig";
 
@@ -45,15 +47,19 @@ const STAY_FILTER: FilterConfig = {
   ],
 };
 
-/** One action per row: open the booking. Every other action (check in / out, pay, voucher, invoice, edit, delete) is on the booking page. */
-function BookingRowActions({ b }: { b: Booking }) {
+/** View / Edit / Delete (to the Recycle Bin). Check in / out, pay, voucher, invoice are on the booking page. */
+function BookingRowActions({ b, user }: { b: Booking; user: SessionUser }) {
+  const href = `${BOOKING_BASE}/${b._id}`;
+  const open = b.status === "confirmed" || b.status === "checked_in";
   return (
-    <Link
-      href={`${BOOKING_BASE}/${b._id}`}
-      className="inline-flex items-center gap-1 h-7 px-3 rounded-md border border-slate-300 bg-white text-[11px] font-bold text-slate-700 hover:border-brand hover:text-brand"
-    >
-      <Eye className="w-3.5 h-3.5" /> View
-    </Link>
+    <RowActions
+      entityLabel="Booking"
+      itemName={`${b.bookingNo} – ${b.guest.name}`}
+      viewHref={href}
+      editHref={open && canBooking(user, b.source, "update") ? `${href}?do=edit` : undefined}
+      deleteUrl={!deleteBlocker(user, b) ? `/api/bookings/${b._id}` : undefined}
+      deleteNote="It goes to the Recycle Bin and can be restored from there."
+    />
   );
 }
 
@@ -68,6 +74,7 @@ interface Props {
 }
 
 export function BookingListView({ data, hotelOptions, agentOnly, itemName = "bookings" }: Props) {
+  const user = useSession();
   const columns = useMemo<Column<Booking>[]>(
     () => [
       {
@@ -192,7 +199,7 @@ export function BookingListView({ data, hotelOptions, agentOnly, itemName = "boo
       itemName={itemName}
       searchPlaceholder="Search by booking no., guest, phone, room or agent ref..."
       filters={filters}
-      rowActions={(row) => <BookingRowActions b={row} />}
+      rowActions={(row) => <BookingRowActions b={row} user={user} />}
     />
   );
 }
