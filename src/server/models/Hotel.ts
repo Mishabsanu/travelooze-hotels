@@ -1,4 +1,5 @@
 import { model, models, Schema, type Model, type Types } from "mongoose";
+import { softDeletePlugin } from "./softDelete";
 import { HOTEL_CATEGORIES, type HotelCategory } from "@/lib/constants";
 import type { RecordStatus } from "@/lib/types";
 
@@ -37,5 +38,7 @@ const HotelSchema = new Schema<HotelDoc>(
   },
   { timestamps: true }
 );
+
+HotelSchema.plugin(softDeletePlugin);
 
 export const Hotel: Model<HotelDoc> = (models.Hotel as Model<HotelDoc>) || model<HotelDoc>("Hotel", HotelSchema);

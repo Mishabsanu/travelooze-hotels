@@ -93,7 +93,7 @@ export async function deleteRoomType(id: string, user: SessionUser): Promise<voi
   await getRoomType(id, user);
   const rooms = await RoomModel.countDocuments({ roomType: id });
   if (rooms) throw new AppError(`${rooms} room(s) use this type. Move or delete them first.`, 409);
-  await RoomTypeModel.findByIdAndDelete(id);
+  await RoomTypeModel.updateOne({ _id: id }, { $set: { deletedAt: new Date(), deletedBy: user._id } });
 }
 
 export async function listRoomTypeOptions(user: SessionUser, hotelId?: string): Promise<(Option & { hotel: string })[]> {
@@ -179,5 +179,5 @@ export async function deleteRoom(id: string, user: SessionUser): Promise<void> {
   if (await Booking.exists({ "rooms.room": id }).setOptions({ withDeleted: true })) {
     throw new AppError("This room appears in bookings. Mark it inactive instead.", 409);
   }
-  await RoomModel.findByIdAndDelete(id);
+  await RoomModel.updateOne({ _id: id }, { $set: { deletedAt: new Date(), deletedBy: user._id } });
 }

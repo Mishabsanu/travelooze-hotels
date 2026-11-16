@@ -40,7 +40,7 @@ export function errorResponse(error: unknown): NextResponse {
   const err = error as { code?: number; keyPattern?: Record<string, unknown>; name?: string };
   if (err?.code === 11000) {
     const field = Object.keys(err.keyPattern || {})[0] || "value";
-    const message = DUPLICATE_LABELS[field] || `Duplicate ${field}`;
+    const message = `${DUPLICATE_LABELS[field] || `Duplicate ${field}`} (if it was deleted, restore it from Admin > Recycle Bin)`;
     const key = field === "nameKey" ? "name" : field;
     return NextResponse.json({ error: message, fieldErrors: { [key]: message } }, { status: 409 });
   }

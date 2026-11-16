@@ -1,4 +1,5 @@
 import { model, models, Schema, type Model, type Types } from "mongoose";
+import { softDeletePlugin } from "./softDelete";
 import type { RecordStatus } from "@/lib/types";
 
 export interface UserDoc {
@@ -36,5 +37,7 @@ const UserSchema = new Schema<UserDoc>(
 );
 
 UserSchema.index({ createdAt: -1 });
+
+UserSchema.plugin(softDeletePlugin);
 
 export const User: Model<UserDoc> = (models.User as Model<UserDoc>) || model<UserDoc>("User", UserSchema);

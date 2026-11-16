@@ -1,4 +1,5 @@
 import { model, models, Schema, type Model, type Types } from "mongoose";
+import { softDeletePlugin } from "./softDelete";
 import { MEAL_PLAN_CODES, type MealPlan } from "@/lib/constants";
 import type { RecordStatus } from "@/lib/types";
 
@@ -54,6 +55,8 @@ const RoomTypeSchema = new Schema<RoomTypeDoc>(
   { timestamps: true }
 );
 RoomTypeSchema.index({ hotel: 1, name: 1 }, { unique: true });
+
+RoomTypeSchema.plugin(softDeletePlugin);
 
 export const RoomType: Model<RoomTypeDoc> =
   (models.RoomType as Model<RoomTypeDoc>) || model<RoomTypeDoc>("RoomType", RoomTypeSchema);

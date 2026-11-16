@@ -87,10 +87,10 @@ export async function updateAgent(id: string, input: AgentInput): Promise<Agent>
   return getAgent(id);
 }
 
-export async function deleteAgent(id: string): Promise<void> {
+export async function deleteAgent(id: string, by?: string): Promise<void> {
   await getAgent(id);
   if (await Booking.exists({ agent: id }).setOptions({ withDeleted: true })) throw new AppError("This agent has bookings. Mark it inactive instead.", 409);
-  await AgentModel.findByIdAndDelete(id);
+  await AgentModel.updateOne({ _id: id }, { $set: { deletedAt: new Date(), deletedBy: by } });
 }
 
 export async function listAgentOptions(): Promise<(Option & { discountPercent: number })[]> {

@@ -73,7 +73,7 @@ export function BookingGrid({ grid, hotel, hotelOptions, typeOptions, roomType, 
       checkIn: grid.days[sel.start].slice(0, 10),
       checkOut: addDays(grid.days[sel.end], 1),
     });
-    return `${source === "agent" ? "/dashboard/sales/agent-bookings/new" : `${BOOKING_BASE}/new`}?${q}`;
+    return `${source === "agent" ? "/dashboard/front-office/bookings/new-agent" : `${BOOKING_BASE}/new`}?${q}`;
   };
 
   const occupancy = useMemo(

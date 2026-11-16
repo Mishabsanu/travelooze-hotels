@@ -79,8 +79,10 @@ export async function deleteHotel(id: string, user: SessionUser): Promise<void> 
   if (await Booking.exists({ hotel: id }).setOptions({ withDeleted: true })) {
     throw new AppError("This hotel has bookings. Mark it inactive instead of deleting it.", 409);
   }
-  await Promise.all([Room.deleteMany({ hotel: id }), RoomType.deleteMany({ hotel: id })]);
-  await HotelModel.findByIdAndDelete(id);
+  // Recycle bin: the hotel with its rooms and room types (restored together)
+  const stamp = { $set: { deletedAt: new Date(), deletedBy: user._id, deletedWith: id } };
+  await Promise.all([Room.updateMany({ hotel: id }, stamp), RoomType.updateMany({ hotel: id }, stamp)]);
+  await HotelModel.updateOne({ _id: id }, { $set: { deletedAt: new Date(), deletedBy: user._id } });
 }
 
 /** Hotels for dropdowns, limited to the user's hotels. */

@@ -9,7 +9,7 @@ export const PUT = apiHandler<{ id: string }>({ module: "role", action: "update"
   return updateRole(params.id, input, user);
 });
 
-export const DELETE = apiHandler<{ id: string }>({ module: "role", action: "delete" }, async ({ params }) => {
-  await deleteRole(params.id);
+export const DELETE = apiHandler<{ id: string }>({ module: "role", action: "delete" }, async ({ params, user }) => {
+  await deleteRole(params.id, user._id);
   return { success: true };
 });

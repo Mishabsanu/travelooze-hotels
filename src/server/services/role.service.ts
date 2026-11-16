@@ -164,7 +164,7 @@ export async function updateRole(id: string, input: RoleInput, actor: RoleActor)
   return toRole(doc, userCount);
 }
 
-export async function deleteRole(id: string): Promise<void> {
+export async function deleteRole(id: string, by?: string): Promise<void> {
   const existing = await findRole(id);
   if (existing.isSuperAdmin) {
     throw new AppError("A Super Admin role cannot be deleted. Turn off Global Access first.", 409);
@@ -173,8 +173,8 @@ export async function deleteRole(id: string): Promise<void> {
   if (assigned > 0) {
     throw new AppError(`${assigned} user(s) still have this role. Reassign them first.`, 409);
   }
-  const deleted = await RoleModel.findByIdAndDelete(id);
-  if (!deleted) throw notFound("Role");
+  const res = await RoleModel.updateOne({ _id: id }, { $set: { deletedAt: new Date(), deletedBy: by } });
+  if (!res.matchedCount) throw notFound("Role");
 }
 
 /** Active roles for dropdowns. `includeInactive` is for list filters (inactive ones are labelled). */

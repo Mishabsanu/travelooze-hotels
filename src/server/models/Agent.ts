@@ -1,4 +1,5 @@
 import { model, models, Schema, type Model, type Types } from "mongoose";
+import { softDeletePlugin } from "./softDelete";
 import type { RecordStatus } from "@/lib/types";
 
 export interface AgentDoc {
@@ -36,5 +37,7 @@ const AgentSchema = new Schema<AgentDoc>(
   },
   { timestamps: true }
 );
+
+AgentSchema.plugin(softDeletePlugin);
 
 export const Agent: Model<AgentDoc> = (models.Agent as Model<AgentDoc>) || model<AgentDoc>("Agent", AgentSchema);

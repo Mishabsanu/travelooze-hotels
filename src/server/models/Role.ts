@@ -1,4 +1,5 @@
 import { model, models, Schema, type Model, type Types } from "mongoose";
+import { softDeletePlugin } from "./softDelete";
 import { PERMISSION_MODULES, type ModulePermission } from "@/lib/permissions";
 import type { RecordStatus } from "@/lib/types";
 
@@ -42,5 +43,7 @@ const RoleSchema = new Schema<RoleDoc>(
   },
   { timestamps: true }
 );
+
+RoleSchema.plugin(softDeletePlugin);
 
 export const Role: Model<RoleDoc> = (models.Role as Model<RoleDoc>) || model<RoleDoc>("Role", RoleSchema);

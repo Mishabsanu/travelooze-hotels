@@ -25,8 +25,6 @@ import { BookingListView, BookingStatusBadge, SourceBadge } from "./BookingListV
 import { FolioList } from "./FolioList";
 import { InvoiceSheet } from "./InvoiceSheet";
 import { InvoiceToolbar } from "./InvoiceToolbar";
-import { RecycleBin } from "./RecycleBin";
-import { listBin } from "@/server/services/booking/bookingActions";
 import { VoucherSheet } from "./VoucherSheet";
 import { VoucherToolbar } from "./VoucherToolbar";
 import { RoomingList } from "./RoomingList";
@@ -68,7 +66,7 @@ export async function BookingListPage({ searchParams, agentOnly = false }: { sea
                 </Link>
               )}
               {canAgent && (
-                <Link href="/dashboard/sales/agent-bookings/new" className={`${btnClass} !bg-white !text-brand border border-brand-border hover:!bg-brand-light`}>
+                <Link href="/dashboard/front-office/bookings/new-agent" className={`${btnClass} !bg-white !text-brand border border-brand-border hover:!bg-brand-light`}>
                   <Plus className="w-4 h-4" />
                   New Agent Booking
                 </Link>
@@ -440,19 +438,6 @@ function Total({ label, value, strong, line, tone = "" }: { label: string; value
       <dt className={strong ? "font-bold text-slate-800" : "text-slate-500"}>{label}</dt>
       <dd className={`tabular-nums ${strong ? "text-sm font-black" : "font-semibold"} ${tone || "text-slate-800"}`}>{value}</dd>
     </div>
-  );
-}
-
-/** Recycle Bin: deleted bookings (restore / delete forever) */
-export async function RecycleBinPage() {
-  const user = await requireUser();
-  if (!canBooking(user, "walkin", "delete") && !canBooking(user, "agent", "delete")) return <AccessDenied />;
-  const items = await listBin(user);
-  return (
-    <>
-      <PageHeader title="Recycle Bin" description="Deleted bookings. Restore one to bring it back (its rooms are booked again if still free)." />
-      <RecycleBin items={items} canPurge={user.isSuperAdmin} />
-    </>
   );
 }
 

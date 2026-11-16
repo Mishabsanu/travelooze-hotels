@@ -176,7 +176,7 @@ function DayPanel({ hotel, day, rooms, today, canBook, canAgent, summary }: { ho
   const shown = rooms.filter((r) => filter === "all" || (filter === "booked" ? r.state === "booked" : r.state === "free"));
   const bookable = day >= today;
   const newHref = (roomId: string, agent: boolean) =>
-    `${agent ? "/dashboard/sales/agent-bookings/new" : `${BOOKING_BASE}/new`}?${new URLSearchParams({ hotel, room: roomId, checkIn: day, checkOut: addDay(day, 1) })}`;
+    `${agent ? "/dashboard/front-office/bookings/new-agent" : `${BOOKING_BASE}/new`}?${new URLSearchParams({ hotel, room: roomId, checkIn: day, checkOut: addDay(day, 1) })}`;
 
   return (
     <div className="bg-white border border-line self-start xl:sticky xl:top-[140px]">

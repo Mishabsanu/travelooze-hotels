@@ -41,11 +41,9 @@ export const NAV_MODULES: NavModule[] = [
     basePath: "/dashboard/front-office",
     items: [
       { label: "Bookings", href: "/dashboard/front-office/bookings", permission: "booking", orPermission: "agent_booking" },
-      { label: "New Booking", href: "/dashboard/front-office/bookings/new", permission: "booking" },
       { label: "Calendar", href: "/dashboard/front-office/calendar", permission: "booking", orPermission: "agent_booking" },
       { label: "Booking Grid", href: "/dashboard/front-office/availability", permission: "booking", orPermission: "agent_booking" },
       { label: "Room Status", href: "/dashboard/front-office/room-status", permission: "booking" },
-      { label: "Recycle Bin", href: "/dashboard/front-office/recycle-bin", permission: "booking", orPermission: "agent_booking" },
     ],
   },
   {
@@ -86,6 +84,7 @@ export const NAV_MODULES: NavModule[] = [
     items: [
       { label: "User Directory", href: "/dashboard/admin/users", permission: "user" },
       { label: "Roles & Permissions", href: "/dashboard/admin/roles", permission: "role" },
+      { label: "Recycle Bin", href: "/dashboard/admin/recycle-bin", permission: "user", orPermission: "role" },
     ],
   },
 ];

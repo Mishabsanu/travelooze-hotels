@@ -9,7 +9,7 @@ export const PUT = apiHandler<{ id: string }>({ module: "agent", action: "update
   updateAgent(params.id, await readBody(req, agentSchema))
 );
 
-export const DELETE = apiHandler<{ id: string }>({ module: "agent", action: "delete" }, async ({ params }) => {
-  await deleteAgent(params.id);
+export const DELETE = apiHandler<{ id: string }>({ module: "agent", action: "delete" }, async ({ params, user }) => {
+  await deleteAgent(params.id, user._id);
   return { success: true };
 });

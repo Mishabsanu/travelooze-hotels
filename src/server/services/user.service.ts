@@ -179,5 +179,5 @@ export async function deleteUser(id: string, actor: SessionUser): Promise<void> 
   ) {
     throw new AppError("This is the last active Super Admin and cannot be deleted.", 409);
   }
-  await UserModel.findByIdAndDelete(id);
+  await UserModel.updateOne({ _id: id }, { $set: { deletedAt: new Date(), deletedBy: actor._id } });
 }

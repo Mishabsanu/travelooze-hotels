@@ -1,7 +1,6 @@
-import { RecycleBinPage } from "@/components/bookings/BookingPages";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Recycle Bin" };
-
+/** The recycle bin moved to Admin (one place for every module). */
 export default function Page() {
-  return <RecycleBinPage />;
+  redirect("/dashboard/admin/recycle-bin?tab=booking");
 }

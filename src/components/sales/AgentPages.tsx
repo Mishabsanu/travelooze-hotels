@@ -111,7 +111,7 @@ export async function AgentDetailPage({ params, searchParams }: { params: IdPara
             actions={
               canBooking(user, "agent", "create") &&
               agent.status === "active" && (
-                <Link href={`/dashboard/sales/agent-bookings/new?agent=${agent._id}`} className={btnClass}>
+                <Link href={`/dashboard/front-office/bookings/new-agent?agent=${agent._id}`} className={btnClass}>
                   <Plus className="w-4 h-4" />
                   New Booking
                 </Link>
