@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 interface ModalProps {
   open: boolean;
@@ -26,9 +27,10 @@ export function Modal({ open, onClose, title, subtitle, icon, size = "md", foote
 
   if (!open) return null;
 
-  return (
+  // Drawn on <body>, so a sticky / transformed parent (e.g. the booking side panel) cannot trap it under the header
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-fade-in"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
       aria-modal="true"
@@ -65,6 +67,7 @@ export function Modal({ open, onClose, title, subtitle, icon, size = "md", foote
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
