@@ -9,6 +9,7 @@ export const bookingApi = {
       `/api/bookings/availability?${new URLSearchParams({ hotel, checkIn, checkOut })}`
     ),
   checkIn: (id: string, at = "") => apiRequest<Booking>(`/api/bookings/${id}/check-in`, "POST", { at }),
+  undoCheckIn: (id: string) => apiRequest<Booking>(`/api/bookings/${id}/undo-check-in`, "POST", {}),
   checkOut: (id: string, allowDue = false, at = "") => apiRequest<Booking>(`/api/bookings/${id}/check-out`, "POST", { allowDue, at }),
   cancel: (id: string, body: { reason: string; noShow: boolean }) => apiRequest<Booking>(`/api/bookings/${id}/cancel`, "POST", body),
   pay: (id: string, body: unknown) => apiRequest<Booking>(`/api/bookings/${id}/payments`, "POST", body),

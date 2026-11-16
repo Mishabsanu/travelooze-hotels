@@ -160,3 +160,16 @@ export async function deleteBooking(id: string, user: SessionUser): Promise<void
   await releaseRoomNights(doc._id);
   await BookingModel.deleteOne({ _id: doc._id });
 }
+
+/** Undo a check-in done by mistake: the booking goes back to Confirmed (nothing else changes). */
+export async function undoCheckIn(id: string, user: SessionUser): Promise<Booking> {
+  if (!can(user, "check_in_out", "update")) throw forbid("undo a check-in");
+  const { doc } = await load(id, user);
+  if (doc.status !== "checked_in") throw new AppError("Only a checked-in booking can be undone", 409);
+  const at = doc.checkedInAt ? doc.checkedInAt.toISOString() : "";
+  doc.status = "confirmed";
+  doc.checkedInAt = undefined;
+  doc.notes = [doc.notes, `Check-in undone by ${user.name}${at ? ` (was checked in ${at.slice(0, 16).replace("T", " ")} UTC)` : ""}`].filter(Boolean).join("\n");
+  await doc.save();
+  return getBooking(id, user);
+}

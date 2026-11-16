@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRightLeft, BadgePercent, Ban, CalendarRange, ChevronDown, FileText, IdCard, LogIn, LogOut, MoreHorizontal, Pencil, Printer, Receipt, Ticket, Trash2, Wallet } from "lucide-react";
+import { ArrowRightLeft, BadgePercent, Ban, CalendarRange, ChevronDown, FileText, IdCard, LogIn, LogOut, MoreHorizontal, Pencil, Printer, Receipt, Ticket, Trash2, Undo2, Wallet } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -10,6 +10,8 @@ import { useSession } from "@/components/providers/SessionProvider";
 import { Button } from "@/components/ui/Button";
 import { canBooking, deleteBlocker } from "@/lib/bookingAccess";
 import { ConfirmDeleteModal } from "@/components/ui/ConfirmDeleteModal";
+import { Modal } from "@/components/ui/Modal";
+import { bookingApi } from "@/services/bookingApi";
 import { BOOKING_BASE } from "./bookingConfig";
 import type { Booking } from "@/lib/hotelTypes";
 import { formatDay } from "@/lib/format";
@@ -44,6 +46,7 @@ export function BookingActions({ booking: b, today, autoOpen, side = false }: { 
   const canEditRate = (b.status === "confirmed" || b.status === "checked_in") && canBooking(user, b.source, "update") && !b.invoiceNo;
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmUndo, setConfirmUndo] = useState(false);
   const canDelete = !deleteBlocker(user, b);
   const removeBooking = async () => {
     setBusy(true);
@@ -100,6 +103,9 @@ export function BookingActions({ booking: b, today, autoOpen, side = false }: { 
       : []),
     ...(show.id ? [{ label: "Upload ID", icon: <IdCard className="w-4 h-4" />, onClick: () => setDialog("id") }] : []),
     { label: "Print", icon: <Printer className="w-4 h-4" />, onClick: () => window.print() },
+    ...(b.status === "checked_in" && can(user, "check_in_out", "update")
+      ? [{ label: "Undo Check-In", icon: <Undo2 className="w-4 h-4" />, onClick: () => setConfirmUndo(true), divider: true }]
+      : []),
     ...(show.cancel ? [{ label: "Cancel / No-show", icon: <Ban className="w-4 h-4" />, onClick: () => setDialog("cancel"), danger: true, divider: true }] : []),
     ...(canDelete ? [{ label: "Delete Booking", icon: <Trash2 className="w-4 h-4" />, onClick: () => setConfirmDelete(true), danger: true, divider: !show.cancel }] : []),
   ];
@@ -145,6 +151,26 @@ export function BookingActions({ booking: b, today, autoOpen, side = false }: { 
       )}
       {more.length > 0 && (side ? <SideList items={more} /> : <MoreMenu items={more} />)}
 
+      <Modal
+        open={confirmUndo}
+        onClose={() => setConfirmUndo(false)}
+        title="Undo Check-In?"
+        subtitle={`${b.bookingNo} · ${b.guest.name}`}
+        icon={<Undo2 className="w-4 h-4" />}
+        size="sm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmUndo(false)} disabled={busy}>
+              Keep Checked In
+            </Button>
+            <Button loading={busy} onClick={() => run(async () => { await bookingApi.undoCheckIn(b._id); setConfirmUndo(false); }, "Check-in undone")}>
+              Yes, Undo Check-In
+            </Button>
+          </>
+        }
+      >
+        <p className="text-xs text-slate-600">The booking goes back to <b>Confirmed</b> and the check-in time is cleared. Guests, payments and charges stay as they are.</p>
+      </Modal>
       <ConfirmDeleteModal
         open={confirmDelete}
         entityLabel="Booking"

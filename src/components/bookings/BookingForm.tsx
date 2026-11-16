@@ -57,7 +57,6 @@ export function BookingForm(p: BookingFormProps) {
   // Aadhaar / ID files per room row (row 1 = main guest)
   const [idFiles, setIdFilesState] = useState<Record<string, File[]>>({});
   const setIdFiles = (room: string, files: File[]) => setIdFilesState((m) => ({ ...m, [room]: files }));
-  const [checkInNow, setCheckInNow] = useState(p.source === "walkin" && (p.preset?.checkIn ?? p.today) === p.today);
   const isAgent = p.source === "agent";
   const [perRoom, setPerRoom] = useState(2);
   const [pickRequest, setPickRequest] = useState(0);
@@ -123,9 +122,6 @@ export function BookingForm(p: BookingFormProps) {
             booking = await bookingApi.uploadGuestIds(booking._id, guest._id, x.files, idx === 0 ? values.aadhaar : "");
           }
         }
-        if (checkInNow && p.canCheckIn && values.checkIn === p.today) {
-          booking = await bookingApi.checkIn(booking._id);
-        }
       } catch (e) {
         toast.warning(`Booking ${booking.bookingNo} saved, but: ${(e as Error).message}`);
       }
@@ -162,8 +158,6 @@ export function BookingForm(p: BookingFormProps) {
         });
         const price = priceRooms(priceLines, nights, discount, values.withGst !== false);
         const gross = price.roomCharges + price.extraBedCharges;
-        // Agent bookings are a record of the agent's booking: no check-in from here
-        const showCheckIn = !isAgent;
 
         return (
           <Form noValidate>
@@ -270,7 +264,7 @@ export function BookingForm(p: BookingFormProps) {
                     <TextField name="focPax" label="Free Guests (FOC)" type="number" min={0} step="1" />
                   </>
                 )}
-                {isAgent && (
+                {(
                   <label className="md:col-span-2 lg:col-span-3 inline-flex items-center gap-2 justify-self-start rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
                     <input type="checkbox" name="withGst" checked={values.withGst !== false} onChange={(e) => setFieldValue("withGst", e.target.checked)} className="w-4 h-4 accent-brand" />
                     With GST
@@ -350,12 +344,6 @@ export function BookingForm(p: BookingFormProps) {
                   </table>
                 </div>
 
-                {p.canCheckIn && showCheckIn && values.checkIn === p.today && (
-                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                    <input type="checkbox" checked={checkInNow} onChange={(e) => setCheckInNow(e.target.checked)} className="w-3.5 h-3.5 accent-brand" />
-                    Check the guest in now
-                  </label>
-                )}
               </FormSection>
             </FormCard>
           </Form>
