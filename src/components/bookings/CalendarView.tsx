@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useSession } from "@/components/providers/SessionProvider";
 import { useListParams } from "@/hooks/useListParams";
 import { canBooking } from "@/lib/bookingAccess";
+import { can } from "@/lib/permissions";
 import { BOOKING_STATUS } from "@/lib/constants";
 import { formatDay, paxLabel } from "@/lib/format";
 import type { Option } from "@/lib/types";
@@ -159,14 +160,34 @@ export function CalendarView({ hotel, hotelOptions, month, days, selected, rooms
         </div>
       </div>
 
-      <DayPanel hotel={hotel} day={selected} rooms={rooms} today={today} canBook={canBooking(user, "walkin", "create")} canAgent={canBooking(user, "agent", "create")} summary={days.find((d) => d.date === selected)} />
+      <DayPanel hotel={hotel} day={selected} rooms={rooms} today={today} canBook={canBooking(user, "walkin", "create")} canAgent={canBooking(user, "agent", "create")} canDesk={can(user, "check_in_out", "update")} summary={days.find((d) => d.date === selected)} />
     </div>
   );
 }
 
 type Filter = "all" | "booked" | "free";
 
-function DayPanel({ hotel, day, rooms, today, canBook, canAgent, summary }: { hotel: string; day: string; rooms: DayRoom[]; today: string; canBook: boolean; canAgent: boolean; summary?: CalendarDay }) {
+const deskBtn = "inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-md";
+
+function DayPanel({
+  hotel,
+  day,
+  rooms,
+  today,
+  canBook,
+  canAgent,
+  canDesk,
+  summary,
+}: {
+  hotel: string;
+  day: string;
+  rooms: DayRoom[];
+  today: string;
+  canBook: boolean;
+  canAgent: boolean;
+  canDesk: boolean;
+  summary?: CalendarDay;
+}) {
   const [filter, setFilter] = useState<Filter>("all");
   const booked = rooms.filter((r) => r.state === "booked").length;
   const free = rooms.filter((r) => r.state === "free").length;
@@ -236,8 +257,22 @@ function DayPanel({ hotel, day, rooms, today, canBook, canAgent, summary }: { ho
                 </span>
               )}
             </span>
-            <span className="shrink-0">
-              {r.state === "booked" ? (
+            <span className="shrink-0 flex flex-col items-end gap-1">
+              {/* Guest leaving this room today and still in-house: check them out from here */}
+              {canDesk && r.departing?.status === "checked_in" && (
+                <Link href={`${BOOKING_BASE}/${r.departing._id}?do=checkout`} className={`${deskBtn} bg-slate-800 text-white hover:bg-slate-900`} title={`Check out ${r.departing.guest}`}>
+                  <LogOut className="w-3 h-3" /> Check Out
+                </Link>
+              )}
+              {r.state === "booked" && r.booking && canDesk && r.booking.status === "confirmed" && r.booking.checkIn.slice(0, 10) <= today ? (
+                <Link href={`${BOOKING_BASE}/${r.booking._id}?do=checkin`} className={`${deskBtn} bg-emerald-600 text-white hover:bg-emerald-700`}>
+                  <LogIn className="w-3 h-3" /> Check In
+                </Link>
+              ) : r.state === "booked" && r.booking && canDesk && r.booking.status === "checked_in" ? (
+                <Link href={`${BOOKING_BASE}/${r.booking._id}?do=checkout`} className={`${deskBtn} border border-slate-300 bg-white text-slate-700 hover:border-slate-800 hover:text-slate-900`}>
+                  <LogOut className="w-3 h-3" /> Check Out
+                </Link>
+              ) : r.state === "booked" ? (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">
                   <CircleX className="w-3 h-3" /> Booked
                 </span>
