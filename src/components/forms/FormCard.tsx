@@ -25,7 +25,7 @@ interface FormCardProps {
 export function FormCard({ title, description, badge, icon, backHref, submitLabel, submitting, extraActions, onSubmitClick, aside, children }: FormCardProps) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-      <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex items-center gap-3">
+      <div className="px-3 sm:px-4 py-3 border-b border-slate-200 flex items-center gap-3">
         <Link
           href={backHref}
           title="Back to list"
@@ -50,15 +50,15 @@ export function FormCard({ title, description, badge, icon, backHref, submitLabe
       </div>
 
       {aside ? (
-        <div className="px-4 sm:px-6 py-5 xl:grid xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-6 space-y-5 xl:space-y-0">
+        <div className="px-3 sm:px-4 py-4 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-5 space-y-5 xl:space-y-0">
           <div className="space-y-5 min-w-0">{children}</div>
           <div className="xl:sticky xl:top-[144px] self-start">{aside}</div>
         </div>
       ) : (
-        <div className="px-4 sm:px-6 py-5 space-y-5">{children}</div>
+        <div className="px-3 sm:px-4 py-4 space-y-5">{children}</div>
       )}
 
-      <div className="sticky bottom-0 z-10 px-4 sm:px-6 py-3 sm:py-4 bg-slate-50/95 backdrop-blur-xs border-t border-slate-200 flex items-center justify-between gap-3">
+      <div className="sticky bottom-0 z-10 px-3 sm:px-4 py-3 bg-slate-50/95 backdrop-blur-xs border-t border-slate-200 flex items-center justify-between gap-3">
         <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
           <Info className="w-4 h-4 text-brand" />
           <span>
@@ -100,7 +100,7 @@ export function FormSection({ title, description, children }: { title: string; d
         <h2 className="text-xs font-bold text-brand uppercase tracking-wider">{title}</h2>
         {description && <p className="text-[11px] text-slate-500 mt-0.5">{description}</p>}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-5 gap-y-3">{children}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-x-4 gap-y-3">{children}</div>
     </section>
   );
 }

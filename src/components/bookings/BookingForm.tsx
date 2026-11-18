@@ -373,7 +373,7 @@ export function BookingForm(p: BookingFormProps) {
               }
             >
               {isAgent && (
-                <div className="px-6 pt-5">
+                <div>
                   <button
                     type="button"
                     onClick={() => setShowPaste((s) => !s)}
@@ -409,19 +409,6 @@ export function BookingForm(p: BookingFormProps) {
                 />
               )}
 
-              {!split && Boolean(p.preset?.rooms?.length) && (
-                <PresetBanner
-                  hotel={p.hotelOptions.find((o) => o.value === values.hotel)?.label}
-                  rooms={values.rooms.map((id) => {
-                    const t = typeOf.get(id);
-                    const number = t?.rooms.find((r) => r._id === id)?.number;
-                    return number ? `${number} · ${t?.name}` : null;
-                  })}
-                  checkIn={values.checkIn}
-                  checkOut={values.checkOut}
-                  nights={nights}
-                />
-              )}
 
               {!isAgent && (
                 <FormSection title="1 · Guest">
@@ -633,26 +620,6 @@ function SplitBanner({ groups, label, problem }: { groups: StayGroup[]; label: (
       </ul>
       <p className="text-xs text-slate-500">Fill in the guest, rate and payment once below. The advance is put on booking 1. To change dates, go back to the grid.</p>
       {problem && <p className="text-xs font-bold text-rose-600">{problem}</p>}
-    </div>
-  );
-}
-
-/** Opened from the Booking Grid / Room Status: show what was carried over, so staff can see it at a glance. */
-function PresetBanner({ hotel, rooms, checkIn, checkOut, nights }: { hotel?: string; rooms: (string | null)[]; checkIn: string; checkOut: string; nights: number }) {
-  const known = rooms.filter(Boolean) as string[];
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-brand-border bg-brand-light px-4 py-3 text-sm text-slate-800">
-      <CalendarCheck className="w-5 h-5 text-brand shrink-0" />
-      <span className="font-bold text-brand">Selected:</span>
-      <span>
-        <b>Room {known.length ? known.join(", ") : rooms.length ? "…" : "— (pick below)"}</b>
-      </span>
-      <span>
-        {formatDay(checkIn)} → {formatDay(checkOut)}
-        {nights ? ` · ${nights} night${nights > 1 ? "s" : ""}` : ""}
-      </span>
-      {hotel && <span className="text-slate-500">{hotel}</span>}
-      <span className="basis-full sm:basis-auto sm:ml-auto text-xs text-slate-500">Change dates or rooms below if needed</span>
     </div>
   );
 }
