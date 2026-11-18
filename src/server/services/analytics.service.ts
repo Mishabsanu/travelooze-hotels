@@ -6,7 +6,6 @@ import { Agent } from "../models/Agent";
 import { Booking } from "../models/Booking";
 import { Hotel } from "../models/Hotel";
 import { Room } from "../models/Room";
-import { RoomNight } from "../models/RoomNight";
 import { addDays, nightsBetween } from "./stay";
 
 export type GroupBy = "day" | "week" | "month" | "year";
@@ -79,21 +78,26 @@ const unitExpr = (g: GroupBy, field: string, tz: string) => ({
   $dateTrunc: { date: field, unit: g, timezone: tz, ...(g === "week" ? { startOfWeek: "monday" } : {}) },
 });
 
-/** Room-night revenue: each night carries (booking total − GST) ÷ (nights × rooms). */
+/**
+ * Room-night revenue from the BOOKINGS: one row per room per stay night, each carrying
+ * (booking total − GST) ÷ (nights × rooms). Built from the bookings (not the room-blocking records),
+ * so a guest who checks out early still counts for what was billed.
+ */
 function nightPipeline(scope: Record<string, unknown>, from: Date, toExcl: Date): PipelineStage[] {
   return [
-    { $match: { ...scope, date: { $gte: from, $lt: toExcl } } },
+    { $match: { ...scope, status: { $nin: ["cancelled", "no_show"] }, checkIn: { $lt: toExcl }, checkOut: { $gt: from } } },
     {
-      $lookup: {
-        from: Booking.collection.name,
-        localField: "booking",
-        foreignField: "_id",
-        as: "b",
-        pipeline: [{ $project: { total: 1, gstAmount: 1, nights: 1, source: 1, agent: 1, mealPlan: 1, status: 1, rooms: 1 } }],
+      $project: {
+        hotel: 1,
+        checkIn: 1,
+        line: "$rooms",
+        b: { total: "$total", gstAmount: "$gstAmount", nights: "$nights", source: "$source", agent: "$agent", mealPlan: "$mealPlan", status: "$status", rooms: "$rooms" },
       },
     },
-    { $unwind: "$b" },
-    { $match: { "b.status": { $ne: "cancelled" } } },
+    { $unwind: "$line" },
+    { $set: { room: "$line.room", date: { $map: { input: { $range: [0, { $max: [1, "$b.nights"] }] }, as: "i", in: { $dateAdd: { startDate: "$checkIn", unit: "day", amount: "$$i" } } } } } },
+    { $unwind: "$date" },
+    { $match: { date: { $gte: from, $lt: toExcl } } },
     {
       $set: {
         net: {
@@ -102,7 +106,6 @@ function nightPipeline(scope: Record<string, unknown>, from: Date, toExcl: Date)
             { $max: [1, { $multiply: ["$b.nights", { $size: "$b.rooms" }] }] },
           ],
         },
-        line: { $first: { $filter: { input: "$b.rooms", cond: { $eq: ["$$this.room", "$room"] } } } },
       },
     },
   ];
@@ -118,7 +121,7 @@ async function sellableRooms(scope: Record<string, unknown>) {
 
 async function totalsFor(scope: Record<string, unknown>, from: Date, toExcl: Date, rooms: number): Promise<Totals> {
   const [nightRow, made, paid, extras] = await Promise.all([
-    RoomNight.aggregate<{ revenue: number; nights: number }>([
+    Booking.aggregate<{ revenue: number; nights: number }>([
       ...nightPipeline(scope, from, toExcl),
       { $group: { _id: null, revenue: { $sum: "$net" }, nights: { $sum: 1 } } },
     ]),
@@ -163,7 +166,7 @@ export async function getAnalytics(user: SessionUser, from: Date, to: Date, grou
 
   const istShift = (field: string) => ({ $dateAdd: { startDate: field, unit: "minute", amount: 330 } });
   const [facets, made, paid, extras, totals, previous] = await Promise.all([
-    RoomNight.aggregate<{
+    Booking.aggregate<{
       series: { _id: { b: Date; s: string }; revenue: number; nights: number }[];
       hotel: { _id: Types.ObjectId; revenue: number; nights: number }[];
       type: { _id: string; revenue: number; nights: number }[];
