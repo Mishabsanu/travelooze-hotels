@@ -36,9 +36,12 @@ export function OccupancyEditor({
   phoneRequired = true,
   idFiles,
   setIdFiles,
+  mainGuestAbove = false,
 }: {
   types: AvailabilityType[];
   phoneRequired?: boolean;
+  /** The main guest's name and phone are typed above the table (walk-in): show them here, don't ask twice */
+  mainGuestAbove?: boolean;
   /** Aadhaar / ID files picked per room (uploaded to that room's guest after saving) */
   idFiles?: Record<string, File[]>;
   setIdFiles?: (room: string, files: File[]) => void;
@@ -167,7 +170,9 @@ export function OccupancyEditor({
                       {Number(l.extraBeds) > 0 ? (values.rateType === "per_head" ? "Included" : formatINR(bedRate * Number(l.extraBeds))) : "—"}
                     </td>
                     <td className={cell}>
-                      {i === 0 ? (
+                      {i === 0 && mainGuestAbove ? (
+                        <span className="font-semibold text-slate-800">{values.guestName.trim() || <span className="font-normal text-slate-400">Main guest (above)</span>}</span>
+                      ) : i === 0 ? (
                         // Room 1 = the booking's main guest (required)
                         <>
                           <input
@@ -205,7 +210,9 @@ export function OccupancyEditor({
                       )}
                     </td>
                     <td className={cell}>
-                      {i === 0 ? (
+                      {i === 0 && mainGuestAbove ? (
+                        <span className="font-mono text-slate-700">{values.phone.trim() || "—"}</span>
+                      ) : i === 0 ? (
                         <>
                           <input
                             type="tel"

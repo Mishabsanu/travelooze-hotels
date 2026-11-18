@@ -19,7 +19,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
       <MobileNav modules={modules} open={menuOpen} onClose={closeMenu} />
       <div className="flex flex-1 min-h-screen">
         <LeftSidebar modules={modules} />
-        <main className="flex-1 print:m-0 ml-0 md:ml-[88px] mt-[128px] p-3 sm:p-5 lg:p-7 w-full min-w-0 overflow-x-hidden">
+        <main className="flex-1 print:m-0 ml-0 md:ml-[88px] mt-[88px] p-3 sm:p-5 lg:p-7 w-full min-w-0 overflow-x-hidden">
           <div className="w-full max-w-[1600px] mx-auto space-y-4 sm:space-y-5">{children}</div>
         </main>
       </div>
@@ -27,7 +27,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
   );
 }
 
-/** Fixed 88px rail + 128px header; the page content scrolls in the canvas. */
+/** Fixed 88px rail + 88px header; the page content scrolls in the canvas. */
 export function AppShell({ user, children }: { user: SessionUser; children: ReactNode }) {
   return (
     <SessionProvider user={user}>

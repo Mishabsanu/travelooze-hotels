@@ -27,11 +27,8 @@ export const NAV_MODULES: NavModule[] = [
     icon: Home,
     basePath: "/dashboard/overview",
     items: [
-      { label: "Overview", href: "/dashboard/overview" },
+      { label: "Today", href: "/dashboard/overview" },
       { label: "Analytics", href: "/dashboard/overview/analytics", permission: "report" },
-      { label: "Calendar", href: "/dashboard/overview/calendar", permission: "booking", orPermission: "agent_booking" },
-      { label: "Booking Grid", href: "/dashboard/overview/booking-grid", permission: "booking", orPermission: "agent_booking" },
-      { label: "Room Status", href: "/dashboard/overview/room-status", permission: "booking", orPermission: "agent_booking" },
     ],
   },
   {
@@ -43,7 +40,7 @@ export const NAV_MODULES: NavModule[] = [
       { label: "Bookings", href: "/dashboard/front-office/bookings", permission: "booking", orPermission: "agent_booking" },
       { label: "Calendar", href: "/dashboard/front-office/calendar", permission: "booking", orPermission: "agent_booking" },
       { label: "Booking Grid", href: "/dashboard/front-office/availability", permission: "booking", orPermission: "agent_booking" },
-      { label: "Room Status", href: "/dashboard/front-office/room-status", permission: "booking" },
+      { label: "Room Status", href: "/dashboard/front-office/room-status", permission: "booking", orPermission: "agent_booking" },
     ],
   },
   {

@@ -1,8 +1,11 @@
-import { BedDouble, CalendarClock, DoorOpen, IndianRupee, LogIn, LogOut, Users } from "lucide-react";
+import { BedDouble, CalendarClock, DoorOpen, IndianRupee, LogIn, LogOut, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { canListBookings } from "@/lib/bookingAccess";
+import { canBooking, canListBookings } from "@/lib/bookingAccess";
+import { parseListQuery } from "@/server/http/query";
+import { listBookings } from "@/server/services/booking/booking.service";
+import { TodayDesk } from "./TodayDesk";
 import { formatDay, formatINR } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { requireUser } from "@/server/auth/session";
@@ -19,14 +22,43 @@ export async function OverviewPage() {
   const user = await requireUser();
   const showTrends = can(user, "report", "view");
   const today = todayIST();
-  const [o, trends] = await Promise.all([getOverview(user), showTrends ? getAnalytics(user, addDays(today, -29), today, "day") : null]);
   const bookings = canListBookings(user);
+  // Today's desk: who arrives, who leaves, who is in the house (50 each is more than a day's work)
+  const stay = (s: string) => (bookings ? listBookings(parseListQuery({ stay: s, limit: "50", sort: "checkIn" }, ["stay"]), user).then((r) => r.items) : Promise.resolve([]));
+  const [o, trends, arriving, leaving, inHouse] = await Promise.all([
+    getOverview(user),
+    showTrends ? getAnalytics(user, addDays(today, -29), today, "day") : null,
+    stay("arrivals"),
+    stay("departures"),
+    stay("inhouse"),
+  ]);
+  const canWalkin = canBooking(user, "walkin", "create");
+  const canAgent = canBooking(user, "agent", "create");
   const occ = o.totals.rooms ? Math.round((o.totals.occupied / o.totals.rooms) * 100) : 0;
   const href = (q: string) => (bookings ? `${BOOKINGS}?${q}` : undefined);
 
   return (
     <>
-      <PageHeader title={`Welcome, ${user.name.split(" ")[0]}`} description={`${formatDay(o.today)} · ${user.roleName} · ${user.activeHotelId ? o.hotels[0]?.name ?? "" : user.allHotels ? "all hotels" : `${o.hotels.length} hotel(s)`}`} />
+      <PageHeader
+        title={`Today · ${formatDay(o.today)}`}
+        description={`Hello ${user.name.split(" ")[0]} · ${user.activeHotelId ? o.hotels[0]?.name ?? "" : user.allHotels ? "all hotels" : `${o.hotels.length} hotel(s)`}`}
+        actions={
+          (canWalkin || canAgent) && (
+            <>
+              {canWalkin && (
+                <Link href={`${BOOKINGS}/new`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-bold shadow-sm">
+                  <Plus className="w-5 h-5" /> New Walk-in
+                </Link>
+              )}
+              {canAgent && (
+                <Link href={`${BOOKINGS}/new-agent`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-brand-border bg-white text-brand hover:bg-brand-light text-sm font-bold">
+                  <Plus className="w-5 h-5" /> Agent Booking
+                </Link>
+              )}
+            </>
+          )
+        }
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         <StatCard label="Occupancy Tonight" value={`${occ}%`} hint={`${o.totals.occupied} of ${o.totals.rooms} rooms`} icon={BedDouble} />
@@ -55,6 +87,16 @@ export async function OverviewPage() {
             Review — check in or mark no-show
           </Link>
         </div>
+      )}
+
+      {bookings && (
+        <TodayDesk
+          arriving={arriving}
+          leaving={leaving}
+          inHouse={inHouse}
+          canCheck={can(user, "check_in_out", "update")}
+          canPay={can(user, "payment", "create")}
+        />
       )}
 
       {trends && (

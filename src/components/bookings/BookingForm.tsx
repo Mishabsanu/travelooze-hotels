@@ -1,24 +1,26 @@
 "use client";
 
 import { Form, Formik } from "formik";
-import { CalendarPlus, MessageSquareText } from "lucide-react";
+import { CalendarCheck, CalendarPlus, ChevronDown, LogIn, MessageSquareText } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FormCard, FormSection } from "@/components/forms/FormCard";
 import { SearchSelectField, SelectField, TextField } from "@/components/forms/FormikFields";
 import { FormField } from "@/components/ui/FormField";
 import { useApiSubmit } from "@/hooks/useApiSubmit";
 import { MEAL_PLANS, MEAL_PLAN_CODES, PAYMENT_MODES, PAYMENT_REF, toOptions, type MealPlan, type PaymentMode } from "@/lib/constants";
-import { formatINR } from "@/lib/format";
+import { formatDay, formatINR } from "@/lib/format";
 import type { AvailabilityType, Booking } from "@/lib/hotelTypes";
 import { packageRates, perHeadRates, priceRooms, round2 } from "@/lib/pricing";
 import type { Option } from "@/lib/types";
 import { bookingSchema, type BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi, idFileProblem } from "@/services/bookingApi";
+import { BOOKING_BASE } from "./bookingConfig";
 
 import { DiscountFields } from "./DiscountFields";
+import { GuestFields } from "./GuestFields";
 import { OccupancyEditor } from "./OccupancyEditor";
 import { RoomPicker } from "./RoomPicker";
 
@@ -34,7 +36,7 @@ export interface BookingFormProps {
   agentOptions: (Option & { discountPercent: number })[];
   presetAgent?: string;
   /** Prefill from the booking grid */
-  preset?: { hotel?: string; room?: string; checkIn?: string; checkOut?: string };
+  preset?: { hotel?: string; rooms?: string[]; checkIn?: string; checkOut?: string; stays?: Stay[] };
   /** Manual discount on walk-ins (same rule as the server: room_type update) */
   canDiscount: boolean;
   canPay: boolean;
@@ -46,6 +48,31 @@ export interface BookingFormProps {
   backHref: string;
 }
 
+/** One room and its own dates, picked on the Booking Grid */
+export interface Stay {
+  room: string;
+  checkIn: string;
+  checkOut: string;
+}
+
+/** Rooms that share the same dates: each group is saved as its own booking */
+interface StayGroup {
+  checkIn: string;
+  checkOut: string;
+  nights: number;
+  rooms: string[];
+}
+
+function groupStays(stays: Stay[] = []): StayGroup[] {
+  const m = new Map<string, StayGroup>();
+  for (const st of stays) {
+    const k = `${st.checkIn}|${st.checkOut}`;
+    const g = m.get(k) ?? { checkIn: st.checkIn, checkOut: st.checkOut, nights: Math.round((Date.parse(st.checkOut) - Date.parse(st.checkIn)) / 86_400_000), rooms: [] };
+    g.rooms.push(st.room);
+    m.set(k, g);
+  }
+  return [...m.values()].sort((a, b) => a.checkIn.localeCompare(b.checkIn) || a.checkOut.localeCompare(b.checkOut));
+}
 
 /**
  * One booking form for walk-ins and agents, kept short: stay + pax → rooms (picked and filled from the pax)
@@ -60,7 +87,44 @@ export function BookingForm(p: BookingFormProps) {
   const isAgent = p.source === "agent";
   const [perRoom, setPerRoom] = useState(2);
   const [pickRequest, setPickRequest] = useState(0);
-  const [showPaste, setShowPaste] = useState(false);
+  // Agents: the WhatsApp paste box is the fastest start, so it is open from the beginning
+  const [showPaste, setShowPaste] = useState(isAgent);
+  // Walk-in: group rates (per head / package) and discount stay folded away until needed
+  const [moreOpen, setMoreOpen] = useState(isAgent);
+  // "Save & Check In": after saving, open the booking with the check-in pop-up
+  const checkInAfter = useRef(false);
+
+  // Rooms with different dates (from the grid): one booking per date range, filled in once
+  const groups = useMemo(() => groupStays(p.preset?.stays), [p.preset?.stays]);
+  const split = groups.length > 1;
+  // Free rooms + rates per date range (rates can differ by season), loaded once
+  const [splitTypes, setSplitTypes] = useState<AvailabilityType[][]>([]);
+  const [splitProblem, setSplitProblem] = useState("");
+  useEffect(() => {
+    const hotel = p.preset?.hotel;
+    if (!split || !hotel) return;
+    let cancelled = false;
+    Promise.all(groups.map((g) => bookingApi.availability(hotel, g.checkIn, g.checkOut)))
+      .then((results) => {
+        if (cancelled) return;
+        const perGroup = results.map((r, gi) => r.types.map((t) => ({ ...t, rooms: t.rooms.filter((x) => groups[gi].rooms.includes(x._id)) })).filter((t) => t.rooms.length));
+        setSplitTypes(perGroup);
+        // One list for the guests table (capacity per room)
+        const merged = new Map<string, AvailabilityType>();
+        for (const t of perGroup.flat()) {
+          const m = merged.get(t._id) ?? { ...t, rooms: [] };
+          m.rooms.push(...t.rooms.filter((x) => !m.rooms.some((y) => y._id === x._id)));
+          merged.set(t._id, m);
+        }
+        setTypes([...merged.values()]);
+        const missing = groups.reduce((n, g, gi) => n + g.rooms.filter((id) => !perGroup[gi].some((t) => t.rooms.some((x) => x._id === id))).length, 0);
+        if (missing) setSplitProblem(`${missing} room(s) are no longer free for their dates. Go back to the grid and pick again.`);
+      })
+      .catch((e) => !cancelled && setSplitProblem(e instanceof ApiError ? e.message : "Could not load rooms"));
+    return () => {
+      cancelled = true;
+    };
+  }, [split, groups, p.preset?.hotel]);
 
   const initialValues: BookingInput = {
     source: p.source,
@@ -78,9 +142,10 @@ export function BookingForm(p: BookingFormProps) {
     mealPlan: "CP",
     arrivalTime: "",
     departureTime: "",
-    rooms: p.preset?.room ? [p.preset.room] : [],
+    rooms: p.preset?.rooms ?? [],
     lines: [],
-    adults: 2,
+    // Rooms picked on the grid: start with 2 guests per room (staff change it if needed)
+    adults: Math.max(2, (p.preset?.rooms?.length ?? 0) * 2),
     children: 0,
     guestName: "",
     phone: "",
@@ -97,43 +162,84 @@ export function BookingForm(p: BookingFormProps) {
   const typeOf = useMemo(() => {
     const m = new Map<string, AvailabilityType>();
     for (const t of types) for (const r of t.rooms) m.set(r._id, t);
+    // Split: each room's rates come from its own date range
+    for (const list of splitTypes) for (const t of list) for (const r of t.rooms) m.set(r._id, t);
     return m;
-  }, [types]);
+  }, [types, splitTypes]);
+
+  /** Uploads each picked ID file to the main guest of its room in this booking. */
+  const uploadIds = async (booking: Booking, aadhaar: string) => {
+    for (const x of booking.rooms) {
+      const files = idFiles[x.room] ?? [];
+      if (!files.length) continue;
+      const guest = x.guests?.find((g) => g.type === "adult");
+      if (!guest) {
+        toast.warning(`Room ${x.roomNumber}: ID not saved, add the guest name on the booking and upload there`);
+        continue;
+      }
+      booking = await bookingApi.uploadGuestIds(booking._id, guest._id, files, x === booking.rooms[0] ? aadhaar : "");
+    }
+    return booking;
+  };
+
+  /** Different dates per room: one booking per date range, same guest / price settings; the advance goes on the first. */
+  const createSplit = async (values: BookingInput): Promise<Booking> => {
+    const made: Booking[] = [];
+    for (const [gi, g] of groups.entries()) {
+      const lines = values.lines.filter((l) => g.rooms.includes(l.room));
+      const sum = (k: "adults" | "children") => lines.reduce((t, l) => t + (Number(l[k]) || 0), 0);
+      const first = gi === 0;
+      try {
+        let b = await bookingApi.create({
+          ...values,
+          rooms: g.rooms,
+          lines,
+          checkIn: g.checkIn,
+          checkOut: g.checkOut,
+          adults: Math.max(1, sum("adults")),
+          children: sum("children"),
+          advance: first ? values.advance : 0,
+          advanceRef: first ? values.advanceRef : "",
+          focPax: first ? values.focPax : 0,
+          aadhaar: first ? values.aadhaar : "",
+          notes: [values.notes, `Booked together with other rooms on different dates (${groups.length} bookings)`].filter(Boolean).join("\n"),
+        });
+        if (p.canUploadId) b = await uploadIds(b, first ? values.aadhaar : "").catch(() => b);
+        made.push(b);
+      } catch (e) {
+        // Never leave the form after a partial save: re-submitting would book the first rooms twice
+        if (!made.length) throw e;
+        toast.error(`Saved ${made.map((x) => x.bookingNo).join(", ")}, but rooms for ${formatDay(g.checkIn)} → ${formatDay(g.checkOut)} failed: ${(e as Error).message}`, { duration: 15000 });
+        return made[0];
+      }
+    }
+    toast.success(`${made.length} bookings saved: ${made.map((x) => x.bookingNo).join(", ")}`, { duration: 8000 });
+    return made[0];
+  };
 
   const onSubmit = useApiSubmit<BookingInput, Booking>({
     request: async (values) => {
-      const picked = values.rooms.map((id) => ({ room: id, files: idFiles[id] ?? [] })).filter((x) => x.files.length);
-      for (const x of picked) {
-        const problem = idFileProblem(x.files);
+      for (const id of values.rooms) {
+        const problem = idFiles[id]?.length ? idFileProblem(idFiles[id]) : null;
         if (problem) throw new ApiError(problem, 422);
       }
+      if (split) return createSplit(values);
       let booking = await bookingApi.create(values);
-      // ID upload and instant check-in are follow-up steps: the booking is already saved if they fail
+      // ID upload is a follow-up step: the booking is already saved if it fails
       try {
-        // Each row's ID goes to that room's guest (row 1: the main guest, with the Aadhaar number if typed)
-        if (p.canUploadId) {
-          for (const x of picked) {
-            const idx = booking.rooms.findIndex((r) => r.room === x.room);
-            const guest = booking.rooms[idx]?.guests?.find((g) => g.type === "adult");
-            if (!guest) {
-              toast.warning(`Room ${booking.rooms[idx]?.roomNumber ?? ""}: ID not saved, add the guest name on the booking and upload there`);
-              continue;
-            }
-            booking = await bookingApi.uploadGuestIds(booking._id, guest._id, x.files, idx === 0 ? values.aadhaar : "");
-          }
-        }
+        if (p.canUploadId) booking = await uploadIds(booking, values.aadhaar);
       } catch (e) {
         toast.warning(`Booking ${booking.bookingNo} saved, but: ${(e as Error).message}`);
       }
       return booking;
     },
     successMessage: "Booking confirmed",
-    redirectTo: (b) => `${p.backHref}?created=${b._id}`,
+    redirectTo: (b) => (checkInAfter.current ? `${BOOKING_BASE}/${b._id}?do=checkin` : `${p.backHref}?created=${b._id}`),
   });
 
   return (
     <Formik initialValues={initialValues} validationSchema={bookingSchema} onSubmit={onSubmit}>
-      {({ isSubmitting, values, setFieldValue }) => {
+      {({ isSubmitting, values, setFieldValue, submitForm }) => {
         const agent = p.agentOptions.find((a) => a.value === values.agent);
         const perHead = values.rateType === "per_head";
         const pkg = values.rateType === "package";
@@ -156,8 +262,23 @@ export function BookingForm(p: BookingFormProps) {
           if (perHead || pkg) return { rate: headRates[i] ?? 0 };
           return { rate: t?.rates?.[mealPlan] ?? 0, extraBeds: Number(roomLines[i]?.extraBeds) || 0, extraBedRate: t?.extraBedRates?.[mealPlan] ?? 0 };
         });
-        const price = priceRooms(priceLines, nights, discount, values.withGst !== false);
+        const price = split
+          ? sumPrices(
+              groups.map((g) =>
+                priceRooms(
+                  values.rooms.flatMap((id, i) => (g.rooms.includes(id) ? [priceLines[i]] : [])),
+                  g.nights,
+                  discount,
+                  values.withGst !== false
+                )
+              )
+            )
+          : priceRooms(priceLines, nights, discount, values.withGst !== false);
         const gross = price.roomCharges + price.extraBedCharges;
+        const canCheckInNow = !split && !isAgent && p.canCheckIn && values.checkIn === p.today;
+        // Keep "More options" open while something in it is in use
+        const showMore = moreOpen || perHead || pkg || (values.discountPercent !== null && (values.discountPercent as unknown) !== "");
+        const n = (i: number) => (isAgent ? i : i + 1);
 
         return (
           <Form noValidate>
@@ -167,8 +288,25 @@ export function BookingForm(p: BookingFormProps) {
               badge={isAgent ? "B2B" : "Walk-in"}
               icon={<CalendarPlus className="w-4.5 h-4.5" />}
               backHref={p.backHref}
-              submitLabel="Confirm Booking"
+              submitLabel={canCheckInNow ? "Save Booking" : "Confirm Booking"}
               submitting={isSubmitting}
+              onSubmitClick={() => (checkInAfter.current = false)}
+              extraActions={
+                canCheckInNow && (
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      checkInAfter.current = true;
+                      void submitForm();
+                    }}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Save &amp; Check In
+                  </button>
+                )
+              }
             >
               {isAgent && (
                 <div className="px-6 pt-5">
@@ -195,9 +333,41 @@ export function BookingForm(p: BookingFormProps) {
                 </div>
               )}
 
-              <FormSection title="1 · Stay & Pax">
-                <SelectField name="hotel" label="Hotel" required placeholder="Select hotel" options={p.hotelOptions} />
-                <TextField
+              {split && (
+                <SplitBanner
+                  groups={groups}
+                  label={(id) => {
+                    const t = typeOf.get(id);
+                    const number = t?.rooms.find((r) => r._id === id)?.number;
+                    return number ? `${number} · ${t?.name}` : "…";
+                  }}
+                  problem={splitProblem}
+                />
+              )}
+
+              {!split && Boolean(p.preset?.rooms?.length) && (
+                <PresetBanner
+                  hotel={p.hotelOptions.find((o) => o.value === values.hotel)?.label}
+                  rooms={values.rooms.map((id) => {
+                    const t = typeOf.get(id);
+                    const number = t?.rooms.find((r) => r._id === id)?.number;
+                    return number ? `${number} · ${t?.name}` : null;
+                  })}
+                  checkIn={values.checkIn}
+                  checkOut={values.checkOut}
+                  nights={nights}
+                />
+              )}
+
+              {!isAgent && (
+                <FormSection title="1 · Guest">
+                  <GuestFields />
+                </FormSection>
+              )}
+
+              <FormSection title={`${n(1)} · Stay & Pax`}>
+                {!split && <SelectField name="hotel" label="Hotel" required placeholder="Select hotel" options={p.hotelOptions} />}
+                {!split && <TextField
                   name="checkIn"
                   label="Check-in"
                   type="date"
@@ -208,8 +378,8 @@ export function BookingForm(p: BookingFormProps) {
                     void setFieldValue("checkIn", v);
                     if (v && v >= values.checkOut) void setFieldValue("checkOut", nextDay(v));
                   }}
-                />
-                <TextField name="checkOut" label="Check-out" type="date" required min={values.checkIn} hint={nights ? `${nights} night${nights > 1 ? "s" : ""}` : undefined} />
+                />}
+                {!split && <TextField name="checkOut" label="Check-out" type="date" required min={values.checkIn} hint={nights ? `${nights} night${nights > 1 ? "s" : ""}` : undefined} />}
                 <SelectField name="mealPlan" label="Meal Plan" required options={PLAN_OPTIONS} />
                 <TextField name="adults" label="Pax (Adults)" type="number" min={1} step="1" required hint={isAgent ? "Everyone, incl. free guests" : undefined} />
                 <TextField name="children" label="Children" type="number" min={0} step="1" />
@@ -221,8 +391,11 @@ export function BookingForm(p: BookingFormProps) {
                 )}
               </FormSection>
 
-              <FormSection title="2 · Rooms & Guests" description="Pick rooms for the pax in one click, or tap rooms yourself. Then type the guest name and phone in the table.">
-                <RoomPicker
+              <FormSection
+                title={`${n(2)} · Rooms`}
+                description={isAgent ? "Pick rooms for the pax in one click, or tap rooms yourself. Then type the guest name and phone in the table." : "Pick rooms for the pax in one click, or tap rooms yourself."}
+              >
+                {!split && <RoomPicker
                   onTypes={(t, n) => {
                     setTypes(t);
                     setNights(n);
@@ -231,18 +404,30 @@ export function BookingForm(p: BookingFormProps) {
                   setPerRoom={setPerRoom}
                   pickRequest={pickRequest}
                   onPickDone={() => setPickRequest(0)}
-                />
-                <OccupancyEditor types={types} phoneRequired={!isAgent} idFiles={idFiles} setIdFiles={p.canUploadId ? setIdFiles : undefined} />
+                />}
+                <OccupancyEditor types={types} phoneRequired={!isAgent} idFiles={idFiles} setIdFiles={p.canUploadId ? setIdFiles : undefined} mainGuestAbove={!isAgent} />
               </FormSection>
 
-              <FormSection title="3 · Price & Payment">
-                {(
+              <FormSection title={`${n(3)} · Price & Payment`}>
+                {!isAgent && (
+                  <button
+                    type="button"
+                    onClick={() => setMoreOpen((o) => !o)}
+                    disabled={showMore && !moreOpen}
+                    className="md:col-span-2 lg:col-span-3 justify-self-start inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline disabled:no-underline disabled:opacity-60"
+                  >
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showMore ? "rotate-180" : ""}`} />
+                    {showMore ? "Fewer options" : "More options: group / package rate" + (canAdjust ? ", discount" : "")}
+                  </button>
+                )}
+                {showMore && (
                   <FormField label="Rate" className="md:col-span-2 lg:col-span-3">
                     <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5" role="radiogroup" aria-label="Rate basis">
                       {[
                         { v: "room", l: "Room rate" },
                         { v: "per_head", l: "Per head (group)" },
-                        { v: "package", l: "Package price" },
+                        // A package is one price for one stay: not with different dates
+                        ...(split ? [] : [{ v: "package", l: "Package price" }]),
                       ].map((o) => (
                         <button
                           key={o.v}
@@ -282,7 +467,7 @@ export function BookingForm(p: BookingFormProps) {
                     hint={`${nights || 0} night${nights === 1 ? "" : "s"}, all rooms, before GST`}
                   />
                 )}
-                {canAdjust && (
+                {canAdjust && showMore && (
                   <DiscountFields
                     gross={gross}
                     discount={discount}
@@ -323,7 +508,7 @@ export function BookingForm(p: BookingFormProps) {
                 <div className="md:col-span-2 lg:col-span-3 border border-line bg-white">
                   <table className="w-full text-xs">
                     <tbody className="divide-y divide-line">
-                      <SummaryRow k="Rooms × nights" v={`${values.rooms.length} × ${nights || 0}`} />
+                      <SummaryRow k="Rooms × nights" v={split ? groups.map((g) => `${g.rooms.length} × ${g.nights}`).join(" + ") : `${values.rooms.length} × ${nights || 0}`} />
                       {perHead && (
                         <SummaryRow
                           k="Per head × paying guests × nights"
@@ -353,6 +538,56 @@ export function BookingForm(p: BookingFormProps) {
   );
 }
 
+
+function sumPrices(list: ReturnType<typeof priceRooms>[]): ReturnType<typeof priceRooms> {
+  const add = (k: keyof ReturnType<typeof priceRooms>) => round2(list.reduce((t, x) => t + x[k], 0));
+  return { roomCharges: add("roomCharges"), extraBedCharges: add("extraBedCharges"), discount: add("discount"), gstAmount: add("gstAmount"), total: add("total") };
+}
+
+/** Rooms on different dates: shows how the form will be saved (one booking per date range). */
+function SplitBanner({ groups, label, problem }: { groups: StayGroup[]; label: (id: string) => string; problem: string }) {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate-800 space-y-2">
+      <p className="flex items-center gap-2 font-bold text-amber-800">
+        <CalendarCheck className="w-5 h-5 shrink-0" />
+        Different dates: this will save {groups.length} bookings for the same guest
+      </p>
+      <ul className="space-y-1">
+        {groups.map((g, i) => (
+          <li key={`${g.checkIn}|${g.checkOut}`} className="flex flex-wrap gap-x-3">
+            <span className="font-semibold text-slate-500">Booking {i + 1}:</span>
+            <b>Room {g.rooms.map(label).join(", ")}</b>
+            <span>
+              {formatDay(g.checkIn)} → {formatDay(g.checkOut)} · {g.nights} night{g.nights > 1 ? "s" : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-slate-500">Fill in the guest, rate and payment once below. The advance is put on booking 1. To change dates, go back to the grid.</p>
+      {problem && <p className="text-xs font-bold text-rose-600">{problem}</p>}
+    </div>
+  );
+}
+
+/** Opened from the Booking Grid / Room Status: show what was carried over, so staff can see it at a glance. */
+function PresetBanner({ hotel, rooms, checkIn, checkOut, nights }: { hotel?: string; rooms: (string | null)[]; checkIn: string; checkOut: string; nights: number }) {
+  const known = rooms.filter(Boolean) as string[];
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-brand-border bg-brand-light px-4 py-3 text-sm text-slate-800">
+      <CalendarCheck className="w-5 h-5 text-brand shrink-0" />
+      <span className="font-bold text-brand">Selected:</span>
+      <span>
+        <b>Room {known.length ? known.join(", ") : rooms.length ? "…" : "— (pick below)"}</b>
+      </span>
+      <span>
+        {formatDay(checkIn)} → {formatDay(checkOut)}
+        {nights ? ` · ${nights} night${nights > 1 ? "s" : ""}` : ""}
+      </span>
+      {hotel && <span className="text-slate-500">{hotel}</span>}
+      <span className="basis-full sm:basis-auto sm:ml-auto text-xs text-slate-500">Change dates or rooms below if needed</span>
+    </div>
+  );
+}
 
 function SummaryRow({ k, v }: { k: string; v: string }) {
   return (

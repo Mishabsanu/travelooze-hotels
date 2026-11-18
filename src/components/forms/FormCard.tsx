@@ -12,11 +12,15 @@ interface FormCardProps {
   backHref: string;
   submitLabel: string;
   submitting?: boolean;
+  /** Extra button(s) shown left of the main submit button, e.g. "Save & Check In" */
+  extraActions?: ReactNode;
+  /** Runs when the main submit button is clicked (before the form submits) */
+  onSubmitClick?: () => void;
   children: ReactNode;
 }
 
 /** Card shell for every create/edit form: header with back link, body, sticky footer actions. */
-export function FormCard({ title, description, badge, icon, backHref, submitLabel, submitting, children }: FormCardProps) {
+export function FormCard({ title, description, badge, icon, backHref, submitLabel, submitting, extraActions, onSubmitClick, children }: FormCardProps) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
       <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex items-center gap-3">
@@ -59,8 +63,10 @@ export function FormCard({ title, description, badge, icon, backHref, submitLabe
           >
             Cancel
           </Link>
+          {extraActions}
           <button
             type="submit"
+            onClick={onSubmitClick}
             disabled={submitting}
             className="px-5 py-2 bg-brand hover:bg-brand-dark text-white text-xs font-bold rounded-lg transition shadow-xs flex items-center gap-1.5 disabled:opacity-50"
           >

@@ -124,9 +124,38 @@ export async function BookingCreatePage({ searchParams, source }: { searchParams
   const isDay = (v?: string) => Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= toDayString(today));
   const ci = first(sp.checkIn);
   const co = first(sp.checkOut);
+  // ?stays=room:checkIn:checkOut,… (rooms with different dates from the grid → one booking per date range)
+  const stays = (first(sp.stays)?.split(",") ?? [])
+    .map((x) => x.split(":"))
+    .filter(([room, a, b]) => /^[a-f\d]{24}$/i.test(room ?? "") && isDay(a) && isDay(b) && b > a)
+    .slice(0, 50)
+    .map(([room, a, b]) => ({ room, checkIn: a, checkOut: b }));
+  const hotel = hotelOptions.find((o) => o.value === first(sp.hotel))?.value;
+  if (stays.length && hotel) {
+    const sorted = stays.map((x) => x.checkIn).sort();
+    const outs = stays.map((x) => x.checkOut).sort();
+    return (
+      <BookingForm
+        source={source}
+        hotelOptions={hotelOptions}
+        agentOptions={agentOptions}
+        presetAgent={first(sp.agent)}
+        preset={{ hotel, rooms: [...new Set(stays.map((x) => x.room))], checkIn: sorted[0], checkOut: outs[outs.length - 1], stays }}
+        canDiscount={can(user, "room_type", "update")}
+        canPay={can(user, "payment", "create")}
+        canUploadId={can(user, "guest_id", "create")}
+        canCheckIn={can(user, "check_in_out", "update")}
+        isSuperAdmin={user.isSuperAdmin}
+        today={toDayString(today)}
+        tomorrow={toDayString(addDays(today, 1))}
+        backHref={BOOKING_BASE}
+      />
+    );
+  }
   const preset = {
-    hotel: hotelOptions.find((o) => o.value === first(sp.hotel))?.value,
-    room: first(sp.room),
+    hotel,
+    // ?rooms=id1,id2 (several rooms picked on the grid) or ?room=id (one room)
+    rooms: [...new Set([...(first(sp.rooms)?.split(",") ?? []), ...(first(sp.room) ? [first(sp.room)!] : [])])].filter((id) => /^[a-f\d]{24}$/i.test(id)).slice(0, 50),
     checkIn: isDay(ci) ? ci : undefined,
     checkOut: isDay(ci) && isDay(co) && co! > ci! ? co : undefined,
   };

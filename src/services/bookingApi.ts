@@ -60,3 +60,15 @@ export function idFileProblem(files: File[]): string | null {
   }
   return null;
 }
+
+export interface ReturningGuest {
+  name: string;
+  phone: string;
+  address: string;
+  stays: number;
+  lastCheckIn: string;
+}
+
+/** Past guest with this phone number (for filling the booking form), or null. */
+export const lookupGuest = (phone: string) =>
+  apiRequest<{ guest: ReturningGuest | null }>(`/api/bookings/guest-lookup?${new URLSearchParams({ phone })}`).then((r) => r.guest);

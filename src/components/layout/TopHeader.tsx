@@ -1,15 +1,22 @@
 "use client";
 
 import { APP_NAME } from "@/lib/brand";
-import { Menu, Search } from "lucide-react";
+import { Menu, Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BOOKING_BASE } from "@/components/bookings/bookingConfig";
+import { useSession } from "@/components/providers/SessionProvider";
+import { canBooking, canListBookings } from "@/lib/bookingAccess";
+import { GlobalSearch } from "./GlobalSearch";
 import { findActiveModule, isActivePath, type NavModule } from "./navigation";
 import { UserMenu } from "./UserMenu";
 
-/** Three tiers, as in Sentinel: purple brand bar → module tabs → active module's sub-tabs. */
+/** Two rows: brand bar (search + New Booking) → the active module's pages. Modules are picked in the left rail (menu button on phones). */
 export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: () => void }) {
   const pathname = usePathname() || "";
+  const user = useSession();
+  const canWalkin = canBooking(user, "walkin", "create");
+  const canAgent = canBooking(user, "agent", "create");
   const activeModule =
     findActiveModule(modules, pathname) ?? modules.find((m) => m.id === "home") ?? modules[0];
 
@@ -24,45 +31,39 @@ export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: (
         </span>
 
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md lg:max-w-xl px-4 hidden md:block">
-          <div className="relative flex items-center">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
-            <input
-              type="text"
-              readOnly
-              placeholder="Search modules and records"
-              className="w-full pl-10 pr-4 py-1.5 bg-white text-xs text-slate-800 placeholder-slate-400 rounded-full border border-white/20 focus:outline-none"
-            />
-          </div>
+          {canListBookings(user) && <GlobalSearch />}
         </div>
 
-        <div className="flex items-center gap-3.5 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3.5 shrink-0">
+          {canWalkin && (
+            <Link
+              href={`${BOOKING_BASE}/new`}
+              title="New walk-in booking"
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 sm:px-3.5 rounded-full bg-white text-brand text-xs font-bold hover:bg-brand-light shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Walk-in</span>
+            </Link>
+          )}
+          {canAgent && (
+            <Link
+              href={`${BOOKING_BASE}/new-agent`}
+              title="New agent booking"
+              className="hidden lg:inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full border border-white/40 text-white text-xs font-bold hover:bg-white/10"
+            >
+              <Plus className="w-4 h-4" />
+              Agent Booking
+            </Link>
+          )}
           <UserMenu />
         </div>
       </header>
 
-      <div className="bg-white border-b border-line px-3 sm:px-6 flex items-center h-[40px]">
-        <div className="flex items-center gap-5 sm:gap-8 overflow-x-auto no-scrollbar">
-          {modules.map((mod) => {
-            const active = mod.id === activeModule?.id;
-            return (
-              <Link
-                key={mod.id}
-                href={mod.items[0].href}
-                className={`py-2.5 shrink-0 text-xs font-semibold uppercase tracking-wider relative ${active ? "text-brand font-bold" : "text-slate-600 hover:text-slate-900"
-                  }`}
-              >
-                {mod.label}
-                {active && (
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 border-x-[5px] border-x-transparent border-b-[5px] border-b-brand" />
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-
       <div className="bg-white border-b border-line px-3 sm:px-6 flex items-center h-[38px]">
         <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
+          {activeModule && (
+            <span className="shrink-0 text-xs font-bold uppercase tracking-wider text-brand pr-6 border-r border-line">{activeModule.label}</span>
+          )}
           {activeModule?.items.map((item) => {
             // Most specific match wins, so "/dashboard/stock" is not active on "/dashboard/stock/in"
             const best = activeModule.items
@@ -73,7 +74,7 @@ export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`py-2 shrink-0 text-xs border-b-2 ${active
+                className={`py-2 shrink-0 text-sm border-b-2 ${active
                     ? "text-slate-900 font-semibold border-brand"
                     : "text-slate-500 hover:text-slate-900 border-transparent"
                   }`}
