@@ -4,7 +4,7 @@ import { Suspense, type ReactNode } from "react";
 import type { SessionUser } from "@/lib/types";
 import { todayIST } from "@/server/services/stay";
 import { canBooking, canListBookings } from "@/lib/bookingAccess";
-import { formatDay, formatINR } from "@/lib/format";
+import { formatDay, formatINR, toDayString } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { requireUser } from "@/server/auth/session";
 import { parseListQuery } from "@/server/http/query";
@@ -146,8 +146,17 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
 async function HomeDesk({ user }: { user: SessionUser }) {
   // 50 each is more than a day's work
   const stay = (s: string) => listBookings(parseListQuery({ stay: s, limit: "50", sort: "checkIn" }, ["stay"]), user).then((r) => r.items);
-  const [arriving, leaving, inHouse] = await Promise.all([stay("arrivals_all"), stay("departures_all"), stay("inhouse")]);
-  return <TodayDesk arriving={arriving} leaving={leaving} inHouse={inHouse} canCheck={can(user, "check_in_out", "update")} canPay={can(user, "payment", "create")} />;
+  const [arriving, leaving, inHouse] = await Promise.all([stay("arrivals"), stay("departures"), stay("inhouse")]);
+  return (
+    <TodayDesk
+      arriving={arriving}
+      leaving={leaving}
+      inHouse={inHouse}
+      canCheck={can(user, "check_in_out", "update")}
+      canPay={can(user, "payment", "create")}
+      today={toDayString(todayIST())}
+    />
+  );
 }
 
 const bone = "animate-pulse rounded bg-slate-200/80";

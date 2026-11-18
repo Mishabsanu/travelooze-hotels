@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BOOKING_BASE } from "@/components/bookings/bookingConfig";
 import { formatDay, formatINR } from "@/lib/format";
+import { DeskAction } from "./DeskAction";
 import type { Booking } from "@/lib/hotelTypes";
 
 interface Props {
@@ -11,57 +12,67 @@ interface Props {
   inHouse: Booking[];
   canCheck: boolean;
   canPay: boolean;
+  /** YYYY-MM-DD (India) */
+  today: string;
 }
 
 const actionBtn = "shrink-0 inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg text-xs font-bold transition";
 
 /**
  * The front desk's day on one screen: arrivals (Check In), departures (Check Out) and in-house guests (Take Payment).
- * Each button opens the booking with that pop-up already open (?do=…), so the usual rules and checks still apply.
+ * Only what is still to do: once checked in, a guest moves from "To check in" to "Checked in"; once checked out, off Home.
+ * Each button opens the pop-up right here on Home (same checks as on the booking page); Home refreshes after.
  */
-export function TodayDesk({ arriving, leaving, inHouse, canCheck, canPay }: Props) {
+export function TodayDesk({ arriving, leaving, inHouse, canCheck, canPay, today }: Props) {
   // Departing guests are also in-house: list them only once, under "Leaving today"
   const leavingIds = new Set(leaving.map((b) => b._id));
   const staying = inHouse.filter((b) => !leavingIds.has(b._id));
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-      <Column title="Arriving today" icon={<LogIn className="w-4 h-4" />} tone="text-sky-700 bg-sky-50 border-sky-200" count={arriving.length} all={`${BOOKING_BASE}?stay=arrivals`} empty="No arrivals today">
+      <Column title="To check in today" icon={<LogIn className="w-4 h-4" />} tone="text-sky-700 bg-sky-50 border-sky-200" count={arriving.length} all={`${BOOKING_BASE}?stay=arrivals`} empty="Everyone has arrived">
         {arriving.map((b) => (
           <Row key={b._id} b={b}>
             {b.status !== "confirmed" ? (
               <Done label="Checked in" at={b.checkedInAt} />
             ) : canCheck && (
-              <Link href={`${BOOKING_BASE}/${b._id}?do=checkin`} className={`${actionBtn} bg-brand text-white hover:bg-brand-dark`}>
+              <DeskAction b={b} action="checkin" today={today} className={`${actionBtn} bg-brand text-white hover:bg-brand-dark`}>
                 <LogIn className="w-4 h-4" /> Check In
-              </Link>
+              </DeskAction>
             )}
           </Row>
         ))}
       </Column>
 
-      <Column title="Leaving today" icon={<LogOut className="w-4 h-4" />} tone="text-amber-700 bg-amber-50 border-amber-200" count={leaving.length} all={`${BOOKING_BASE}?stay=departures`} empty="No departures today">
+      <Column title="To check out today" icon={<LogOut className="w-4 h-4" />} tone="text-amber-700 bg-amber-50 border-amber-200" count={leaving.length} all={`${BOOKING_BASE}?stay=departures`} empty="Nobody left to check out">
         {leaving.map((b) => (
           <Row key={b._id} b={b} showDue>
             {b.status === "checked_out" ? (
               <Done label="Checked out" at={b.checkedOutAt} />
             ) : canCheck && (
-              <Link href={`${BOOKING_BASE}/${b._id}?do=checkout`} className={`${actionBtn} bg-rail text-white hover:bg-rail-active`}>
+              <DeskAction b={b} action="checkout" today={today} className={`${actionBtn} bg-rail text-white hover:bg-rail-active`}>
                 <LogOut className="w-4 h-4" /> Check Out
-              </Link>
+              </DeskAction>
             )}
           </Row>
         ))}
       </Column>
 
-      <Column title="In-house" icon={<Users className="w-4 h-4" />} tone="text-emerald-700 bg-emerald-50 border-emerald-200" count={staying.length} all={`${BOOKING_BASE}?stay=inhouse`} empty="No other guests in the house">
+      <Column title="Checked in (staying)" icon={<Users className="w-4 h-4" />} tone="text-emerald-700 bg-emerald-50 border-emerald-200" count={staying.length} all={`${BOOKING_BASE}?stay=inhouse`} empty="No guests staying">
         {staying.map((b) => (
           <Row key={b._id} b={b} showDue>
-            {canPay && b.balance > 0 && (
-              <Link href={`${BOOKING_BASE}/${b._id}?do=pay`} className={`${actionBtn} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}>
-                <Wallet className="w-4 h-4" /> Payment
-              </Link>
-            )}
+            <span className="shrink-0 flex gap-1.5">
+              {canPay && b.guestDue > 0 && (
+                <DeskAction b={b} action="pay" today={today} className={`${actionBtn} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}>
+                  <Wallet className="w-4 h-4" /> Pay
+                </DeskAction>
+              )}
+              {canCheck && (
+                <DeskAction b={b} action="checkout" today={today} className={`${actionBtn} border border-rail text-rail hover:bg-rail hover:text-white`}>
+                  <LogOut className="w-4 h-4" /> Check Out
+                </DeskAction>
+              )}
+            </span>
           </Row>
         ))}
       </Column>
