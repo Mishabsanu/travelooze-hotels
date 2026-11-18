@@ -16,7 +16,7 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
   if (!allowed) return <AccessDenied />;
   const sp = await searchParams;
   const r = await getReport(user, first(sp.from), first(sp.to), can(user, "agent", "view") || user.allHotels);
-  const money = ["roomCharges", "discount", "gst", "total", "collected", "walkin", "agent"] as const;
+  const money = ["roomCharges", "discount", "gst", "extras", "total", "collected", "walkin", "agent"] as const;
 
   return (
     <>
@@ -44,6 +44,7 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
               <th className={`${th} text-right`}>Room Charges</th>
               <th className={`${th} text-right`}>Discount</th>
               <th className={`${th} text-right`}>GST</th>
+              <th className={`${th} text-right`}>Extras</th>
               <th className={`${th} text-right`}>Total</th>
               <th className={`${th} text-right`}>Collected</th>
               <th className={`${th} text-right`}>Walk-in</th>
@@ -65,7 +66,7 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
             ))}
             {r.rows.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-6 py-10 text-center text-slate-400">
+                <td colSpan={11} className="px-6 py-10 text-center text-slate-400">
                   No bookings in this period
                 </td>
               </tr>

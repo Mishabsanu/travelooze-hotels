@@ -426,7 +426,7 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
         </div>
 
         {/* Right panel: summary + every action */}
-        <aside className="no-print order-first space-y-3 lg:sticky lg:top-[140px] lg:order-none">
+        <aside className="no-print order-first space-y-3 lg:sticky lg:top-[104px] lg:order-none">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Stay</p>
             <p className="mt-0.5 text-sm font-bold text-slate-900">

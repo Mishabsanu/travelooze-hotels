@@ -1,7 +1,7 @@
 "use client";
 
 import { Form, Formik } from "formik";
-import { CalendarCheck, CalendarPlus, ChevronDown, LogIn, MessageSquareText } from "lucide-react";
+import { CalendarCheck, CalendarPlus, ChevronDown, LogIn, MessageSquareText, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -21,7 +21,7 @@ import { bookingApi, idFileProblem } from "@/services/bookingApi";
 import { BOOKING_BASE } from "./bookingConfig";
 
 import { DiscountFields } from "./DiscountFields";
-import { ExtraChargesEditor, extrasTotal, type ExtraCharge } from "./ExtraChargesEditor";
+import { ExtraChargesEditor, extrasTotal, newCharge, type ExtraCharge } from "./ExtraChargesEditor";
 import { GuestFields } from "./GuestFields";
 import { OccupancyEditor } from "./OccupancyEditor";
 import { RoomPicker } from "./RoomPicker";
@@ -29,6 +29,7 @@ import { RoomPicker } from "./RoomPicker";
 // The WhatsApp paste box (and its message parser) is only downloaded when opened
 const AgentMessagePanel = dynamic(() => import("./AgentMessagePanel").then((m) => m.AgentMessagePanel), { ssr: false });
 
+const addLink = "inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-dashed border-slate-300 text-xs font-bold text-slate-600 hover:border-brand hover:text-brand";
 const PLAN_OPTIONS = MEAL_PLAN_CODES.map((c) => ({ value: c, label: MEAL_PLANS[c].label }));
 const MODE_OPTIONS = toOptions(PAYMENT_MODES);
 
@@ -97,6 +98,7 @@ export function BookingForm(p: BookingFormProps) {
   const checkInAfter = useRef(false);
   // Extra charges typed while booking: added to the booking's bill right after it is saved
   const [extras, setExtras] = useState<ExtraCharge[]>([]);
+  const [notesOpen, setNotesOpen] = useState(false);
   const filledExtras = extras.filter((c) => Number(c.amount) > 0);
 
   /** Puts the extra charges on the saved booking (same as "Extra Charge" on the booking page). */
@@ -321,6 +323,36 @@ export function BookingForm(p: BookingFormProps) {
               backHref={p.backHref}
               submitLabel={canCheckInNow ? "Save Booking" : "Confirm Booking"}
               submitting={isSubmitting}
+              aside={
+                <div className="space-y-2">
+                  <h2 className="text-xs font-bold text-brand uppercase tracking-wider">Summary</h2>
+                <div className="border border-line bg-white">
+                  <table className="w-full text-xs">
+                    <tbody className="divide-y divide-line">
+                      <SummaryRow k="Rooms × nights" v={split ? groups.map((g) => `${g.rooms.length} × ${g.nights}`).join(" + ") : `${values.rooms.length} × ${nights || 0}`} />
+                      {perHead && (
+                        <SummaryRow
+                          k="Per head × paying guests × nights"
+                          v={`${formatINR(Number(values.perHeadRate) || 0)} × ${Math.max(0, totalPax - (Number(values.focPax) || 0))} × ${nights || 0}${Number(values.focPax) ? ` (+${values.focPax} free)` : ""}`}
+                        />
+                      )}
+                      {pkg && <SummaryRow k={`Package for ${nights || 0} night${nights === 1 ? "" : "s"}, ${values.rooms.length} room${values.rooms.length === 1 ? "" : "s"}`} v={formatINR(Number(values.packageAmount) || 0)} />}
+                      <SummaryRow k={perHead || pkg ? "Package charges" : "Room charges"} v={formatINR(price.roomCharges)} />
+                      {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
+                      {price.discount > 0 && <SummaryRow k={`Discount (${round2(discount)}%)`} v={`− ${formatINR(price.discount)}`} />}
+                      <SummaryRow k={values.withGst === false ? "GST (not charged)" : "GST"} v={formatINR(price.gstAmount)} />
+                      {filledExtras.length > 0 && <SummaryRow k="Room total" v={formatINR(price.total)} />}
+                      {filledExtras.length > 0 && <SummaryRow k={`Extra charges (${filledExtras.length})`} v={formatINR(extrasTotal(filledExtras))} />}
+                      <tr className="bg-brand-light">
+                        <td className="px-3 py-2 font-bold text-brand uppercase tracking-wider text-[11px]">Total</td>
+                        <td className="px-3 py-2 text-right font-black text-base text-slate-900 tabular-nums">{formatINR(price.total + extrasTotal(filledExtras))}</td>
+                      </tr>
+                      {Number(values.advance) > 0 && <SummaryRow k="Balance after advance" v={formatINR(Math.max(0, price.total + extrasTotal(filledExtras) - Number(values.advance)))} />}
+                    </tbody>
+                  </table>
+                </div>
+                </div>
+              }
               onSubmitClick={() => (checkInAfter.current = false)}
               extraActions={
                 canCheckInNow && (
@@ -445,14 +477,14 @@ export function BookingForm(p: BookingFormProps) {
                     type="button"
                     onClick={() => setMoreOpen((o) => !o)}
                     disabled={showMore && !moreOpen}
-                    className="md:col-span-2 lg:col-span-3 justify-self-start inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline disabled:no-underline disabled:opacity-60"
+                    className="col-span-full justify-self-start inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline disabled:no-underline disabled:opacity-60"
                   >
                     <ChevronDown className={`w-4 h-4 transition-transform ${showMore ? "rotate-180" : ""}`} />
                     {showMore ? "Fewer options" : "More options: group / package rate" + (canAdjust ? ", discount" : "")}
                   </button>
                 )}
                 {showMore && (
-                  <FormField label="Rate" className="md:col-span-2 lg:col-span-3">
+                  <FormField label="Rate" className="col-span-full">
                     <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5" role="radiogroup" aria-label="Rate basis">
                       {[
                         { v: "room", l: "Room rate" },
@@ -481,7 +513,7 @@ export function BookingForm(p: BookingFormProps) {
                   </>
                 )}
                 {(
-                  <label className="md:col-span-2 lg:col-span-3 inline-flex items-center gap-2 justify-self-start rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                  <label className="col-span-full inline-flex items-center gap-2 justify-self-start rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
                     <input type="checkbox" name="withGst" checked={values.withGst !== false} onChange={(e) => setFieldValue("withGst", e.target.checked)} className="w-4 h-4 accent-brand" />
                     With GST
                     <span className="font-normal text-slate-400">{values.withGst !== false ? "GST added on room charges" : "No GST on room charges"}</span>
@@ -536,41 +568,33 @@ export function BookingForm(p: BookingFormProps) {
                   </>
                 )}
 
-                {p.canPay && <ExtraChargesEditor value={extras} onChange={setExtras} />}
-                <TextAreaField
-                  name="notes"
-                  label="Notes"
-                  rows={2}
-                  maxLength={500}
-                  placeholder="Special requests, arrival details, anything the team should know…"
-                  className="md:col-span-2 lg:col-span-3"
-                />
-
-                <div className="md:col-span-2 lg:col-span-3 border border-line bg-white">
-                  <table className="w-full text-xs">
-                    <tbody className="divide-y divide-line">
-                      <SummaryRow k="Rooms × nights" v={split ? groups.map((g) => `${g.rooms.length} × ${g.nights}`).join(" + ") : `${values.rooms.length} × ${nights || 0}`} />
-                      {perHead && (
-                        <SummaryRow
-                          k="Per head × paying guests × nights"
-                          v={`${formatINR(Number(values.perHeadRate) || 0)} × ${Math.max(0, totalPax - (Number(values.focPax) || 0))} × ${nights || 0}${Number(values.focPax) ? ` (+${values.focPax} free)` : ""}`}
-                        />
-                      )}
-                      {pkg && <SummaryRow k={`Package for ${nights || 0} night${nights === 1 ? "" : "s"}, ${values.rooms.length} room${values.rooms.length === 1 ? "" : "s"}`} v={formatINR(Number(values.packageAmount) || 0)} />}
-                      <SummaryRow k={perHead || pkg ? "Package charges" : "Room charges"} v={formatINR(price.roomCharges)} />
-                      {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
-                      {price.discount > 0 && <SummaryRow k={`Discount (${round2(discount)}%)`} v={`− ${formatINR(price.discount)}`} />}
-                      <SummaryRow k={values.withGst === false ? "GST (not charged)" : "GST"} v={formatINR(price.gstAmount)} />
-                      {filledExtras.length > 0 && <SummaryRow k="Room total" v={formatINR(price.total)} />}
-                      {filledExtras.length > 0 && <SummaryRow k={`Extra charges (${filledExtras.length}, incl. GST)`} v={formatINR(extrasTotal(filledExtras))} />}
-                      <tr className="bg-brand-light">
-                        <td className="px-3 py-2 font-bold text-brand uppercase tracking-wider text-[11px]">Total</td>
-                        <td className="px-3 py-2 text-right font-black text-base text-slate-900 tabular-nums">{formatINR(price.total + extrasTotal(filledExtras))}</td>
-                      </tr>
-                      {Number(values.advance) > 0 && <SummaryRow k="Balance after advance" v={formatINR(Math.max(0, price.total + extrasTotal(filledExtras) - Number(values.advance)))} />}
-                    </tbody>
-                  </table>
-                </div>
+                {/* Extra charges and notes stay folded away until needed */}
+                {(!(p.canPay && extras.length) || !(notesOpen || values.notes)) && (
+                  <div className="col-span-full flex flex-wrap gap-2">
+                    {p.canPay && !extras.length && (
+                      <button type="button" onClick={() => setExtras([newCharge()])} className={addLink}>
+                        <Plus className="w-4 h-4" /> Extra charge
+                      </button>
+                    )}
+                    {!(notesOpen || values.notes) && (
+                      <button type="button" onClick={() => setNotesOpen(true)} className={addLink}>
+                        <Plus className="w-4 h-4" /> Note
+                      </button>
+                    )}
+                  </div>
+                )}
+                {p.canPay && extras.length > 0 && <ExtraChargesEditor value={extras} onChange={setExtras} />}
+                {(notesOpen || Boolean(values.notes)) && (
+                  <TextAreaField
+                    name="notes"
+                    label="Notes"
+                    rows={2}
+                    maxLength={500}
+                    autoFocus={!values.notes}
+                    placeholder="Special requests, arrival details, anything the team should know…"
+                    className="col-span-full"
+                  />
+                )}
 
               </FormSection>
             </FormCard>

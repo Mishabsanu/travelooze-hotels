@@ -21,7 +21,7 @@ export function HotelAssignField({ options, superAdminRole }: { options: Option[
   };
 
   return (
-    <div className="md:col-span-2 lg:col-span-3 space-y-3">
+    <div className="col-span-full space-y-3">
       <label className="flex items-center justify-between gap-4 rounded-lg border border-brand-border bg-brand-light/50 px-4 py-3 cursor-pointer">
         <span className="flex items-start gap-3">
           <Building2 className="w-4.5 h-4.5 text-brand mt-0.5" />

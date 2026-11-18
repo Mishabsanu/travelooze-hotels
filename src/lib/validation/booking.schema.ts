@@ -43,7 +43,8 @@ export const chargeSchema = Yup.object({
   description: optionalText("Description", 120),
   qty: Yup.number().typeError("Enter a number").moreThan(0, "Enter a quantity").required("Quantity is required"),
   rate: Yup.number().typeError("Enter a number").min(0, "Cannot be negative").required("Rate is required"),
-  gstPercent: Yup.number().typeError("Enter a number").min(0).max(28).required(),
+  /** Ignored: extra charges are saved without GST */
+  gstPercent: Yup.number().typeError("Enter a number").min(0).max(28).default(0),
   date: Yup.string().default("").matches(/^$|^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
 });
 export type ChargeInput = Yup.InferType<typeof chargeSchema>;

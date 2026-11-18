@@ -96,7 +96,7 @@ export function AgentMessagePanel({ hotelOptions, today, onPlan }: { hotelOption
   };
 
   return (
-    <div className="md:col-span-2 lg:col-span-3 space-y-2">
+    <div className="col-span-full space-y-2">
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

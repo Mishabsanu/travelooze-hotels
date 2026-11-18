@@ -163,7 +163,8 @@ export async function addCharge(id: string, input: ChargeInput, user: SessionUse
   if (!can(user, "payment", "create")) throw forbid("add charges");
   const { doc } = await loadOpen(id, user);
   const category = input.category as ChargeCategory;
-  const price = priceCharge(input.qty, input.rate, input.gstPercent);
+  // Extra charges are billed without GST
+  const price = priceCharge(input.qty, input.rate, 0);
   if (price.total <= 0) throw new AppError("Enter an amount", 422);
   const date = input.date ? parseDay(input.date) : todayIST();
   doc.charges.push({
@@ -173,7 +174,7 @@ export async function addCharge(id: string, input: ChargeInput, user: SessionUse
     description: input.description || CHARGE_CATEGORIES[category].label,
     qty: input.qty,
     rate: input.rate,
-    gstPercent: input.gstPercent,
+    gstPercent: 0,
     ...price,
     by: new Types.ObjectId(user._id),
     at: new Date(),

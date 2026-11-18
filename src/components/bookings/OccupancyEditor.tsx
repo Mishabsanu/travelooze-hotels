@@ -67,7 +67,7 @@ export function OccupancyEditor({
 
   if (!values.rooms.length) {
     return (
-      <p className="md:col-span-2 lg:col-span-3 text-xs text-slate-400">
+      <p className="col-span-full text-xs text-slate-400">
         Pick rooms above: a table opens for guest names, phones and Aadhaar (all optional now, needed at check-in).
       </p>
     );
@@ -85,7 +85,7 @@ export function OccupancyEditor({
   const mismatch = !auto && (totalAdults !== adults || totalChildren !== children);
 
   return (
-    <div className="md:col-span-2 lg:col-span-3 space-y-2">
+    <div className="col-span-full space-y-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
         <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
           <Users className="w-3.5 h-3.5 text-brand" />

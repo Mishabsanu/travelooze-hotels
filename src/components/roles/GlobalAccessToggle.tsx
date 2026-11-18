@@ -25,7 +25,7 @@ export function GlobalAccessToggle() {
   };
 
   return (
-    <div className="md:col-span-2 lg:col-span-3 flex items-center justify-between gap-4 rounded-lg border border-brand-border bg-brand-light/50 px-4 py-3">
+    <div className="col-span-full flex items-center justify-between gap-4 rounded-lg border border-brand-border bg-brand-light/50 px-4 py-3">
       <div className="flex items-start gap-3">
         <Globe2 className="w-4.5 h-4.5 text-brand mt-0.5" />
         <div>

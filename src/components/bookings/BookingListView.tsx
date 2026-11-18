@@ -155,7 +155,18 @@ export function BookingListView({ data, hotelOptions, agentOnly, itemName = "boo
       { key: "source", label: "Source", render: (r) => <SourceBadge b={r} /> },
       { key: "agentRef", label: "Agent Ref", hiddenByDefault: true },
       { key: "status", label: "Status", align: "center", render: (r) => <BookingStatusBadge status={r.status} /> },
-      { key: "total", label: "Total", align: "right", render: (r) => <span className="tabular-nums">{formatINR(r.total)}</span> },
+      {
+        key: "total",
+        label: "Total",
+        align: "right",
+        // Grand total (room + extra charges), the same amount the Balance is worked out from
+        render: (r) => (
+          <span className="tabular-nums">
+            {formatINR(r.grandTotal)}
+            {r.extrasTotal > 0 && <span className="block text-[10.5px] text-slate-400">incl. extras {formatINR(r.extrasTotal)}</span>}
+          </span>
+        ),
+      },
       {
         key: "balance",
         label: "Balance",

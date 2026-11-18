@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { SelectField, TextField } from "@/components/forms/FormikFields";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { CHARGE_CATEGORIES, MEAL_PLANS, MEAL_PLAN_CODES, type ChargeCategory } from "@/lib/constants";
+import { CHARGE_CATEGORIES, MEAL_PLANS, MEAL_PLAN_CODES } from "@/lib/constants";
 import { formatINR } from "@/lib/format";
 import type { AvailabilityType, Booking } from "@/lib/hotelTypes";
 import { packageRates, perHeadRates, priceCharge, priceRooms, round2 } from "@/lib/pricing";
@@ -28,7 +28,7 @@ interface Props {
   run: (fn: () => Promise<unknown>, message: string) => Promise<void>;
 }
 
-const CATEGORY_OPTIONS = Object.entries(CHARGE_CATEGORIES).map(([value, c]) => ({ value, label: `${c.label} (GST ${c.gst}%)` }));
+const CATEGORY_OPTIONS = Object.entries(CHARGE_CATEGORIES).map(([value, c]) => ({ value, label: c.label }));
 
 /** Extra charge, change dates and room move pop-ups (loaded on demand with the other booking dialogs). */
 export function StayDialogs({ b, dialog, close, busy, today, run, canDiscount }: Props) {
@@ -37,12 +37,12 @@ export function StayDialogs({ b, dialog, close, busy, today, run, canDiscount }:
       {dialog === "rate" && <RateDialog b={b} close={close} busy={busy} run={run} canDiscount={Boolean(canDiscount) || b.source === "agent"} />}
       <Modal open={dialog === "charge"} onClose={close} title="Add Extra Charge" subtitle="Restaurant, room service, laundry, minibar, transport…" icon={<Receipt className="w-4 h-4" />} size="sm">
         <Formik
-          initialValues={{ category: "restaurant", description: "", qty: 1, rate: 0, gstPercent: 5, date: today }}
+          initialValues={{ category: "restaurant", description: "", qty: 1, rate: 0, gstPercent: 0, date: today }}
           validationSchema={chargeSchema}
           onSubmit={(v) => run(() => apiRequest(`/api/bookings/${b._id}/charges`, "POST", v), "Charge added")}
         >
           {({ values, setFieldValue }) => {
-            const p = priceCharge(Number(values.qty) || 0, Number(values.rate) || 0, Number(values.gstPercent) || 0);
+            const p = priceCharge(Number(values.qty) || 0, Number(values.rate) || 0, 0);
             return (
               <Form noValidate className="space-y-3">
                 <SelectField
@@ -50,20 +50,16 @@ export function StayDialogs({ b, dialog, close, busy, today, run, canDiscount }:
                   label="Category"
                   required
                   options={CATEGORY_OPTIONS}
-                  onChange={(e) => {
-                    void setFieldValue("category", e.target.value);
-                    void setFieldValue("gstPercent", CHARGE_CATEGORIES[e.target.value as ChargeCategory].gst);
-                  }}
+                  onChange={(e) => void setFieldValue("category", e.target.value)}
                 />
                 <TextField name="description" label="Description" placeholder="e.g. Dinner – 2 thali" maxLength={120} />
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <TextField name="qty" label="Qty" type="number" min={0.5} step="0.5" required />
                   <TextField name="rate" label="Rate (₹)" type="number" min={0} step="1" required />
-                  <TextField name="gstPercent" label="GST %" type="number" min={0} max={28} required />
                 </div>
                 <TextField name="date" label="Date" type="date" max={today} />
                 <p className="text-xs text-slate-600">
-                  {formatINR(p.amount)} + GST {formatINR(p.gstAmount)} = <b>{formatINR(p.total)}</b>
+                  Total: <b>{formatINR(p.total)}</b>
                   {b.billTo === "agent" && <span className="block text-slate-400">Agent booking: extras are paid by the guest.</span>}
                 </p>
                 <Button type="submit" className="w-full" loading={busy}>

@@ -88,7 +88,7 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
 async function monthRevenue(scope: Record<string, unknown>, monthStart: Date): Promise<Overview["month"]> {
   const [m] = await Booking.aggregate<{ revenue: number; bookings: number; collected: number }>([
     { $match: { ...scope, status: { $ne: "cancelled" }, checkIn: { $gte: monthStart } } },
-    { $group: { _id: null, revenue: { $sum: "$total" }, bookings: { $sum: 1 }, collected: { $sum: { $sum: "$payments.amount" } } } },
+    { $group: { _id: null, revenue: { $sum: { $add: ["$total", { $ifNull: ["$extrasTotal", 0] }] } }, bookings: { $sum: 1 }, collected: { $sum: { $sum: "$payments.amount" } } } },
   ]);
   return { revenue: m?.revenue ?? 0, bookings: m?.bookings ?? 0, collected: m?.collected ?? 0 };
 }

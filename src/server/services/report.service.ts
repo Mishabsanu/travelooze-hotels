@@ -16,6 +16,9 @@ export interface RevenueRow {
   roomCharges: number;
   discount: number;
   gst: number;
+  /** Extra charges (food, laundry, …) */
+  extras: number;
+  /** Room total + extras */
   total: number;
   collected: number;
   walkin: number;
@@ -53,10 +56,11 @@ export async function getReport(user: SessionUser, fromStr?: string, toStr?: str
         roomCharges: { $sum: "$roomCharges" },
         discount: { $sum: "$discount" },
         gst: { $sum: "$gstAmount" },
-        total: { $sum: "$total" },
+        extras: { $sum: { $ifNull: ["$extrasTotal", 0] } },
+        total: { $sum: { $add: ["$total", { $ifNull: ["$extrasTotal", 0] }] } },
         collected: { $sum: { $sum: "$payments.amount" } },
-        walkin: { $sum: { $cond: [{ $eq: ["$source", "walkin"] }, "$total", 0] } },
-        agent: { $sum: { $cond: [{ $eq: ["$source", "agent"] }, "$total", 0] } },
+        walkin: { $sum: { $cond: [{ $eq: ["$source", "walkin"] }, { $add: ["$total", { $ifNull: ["$extrasTotal", 0] }] }, 0] } },
+        agent: { $sum: { $cond: [{ $eq: ["$source", "agent"] }, { $add: ["$total", { $ifNull: ["$extrasTotal", 0] }] }, 0] } },
       },
     },
   ]);
@@ -64,7 +68,7 @@ export async function getReport(user: SessionUser, fromStr?: string, toStr?: str
   const list: RevenueRow[] = rows
     .map((r) => ({ ...r, _id: String(r._id), name: names.get(String(r._id)) ?? "—" }))
     .sort((a, b) => b.total - a.total);
-  const keys = ["bookings", "roomNights", "roomCharges", "discount", "gst", "total", "collected", "walkin", "agent"] as const;
+  const keys = ["bookings", "roomNights", "roomCharges", "discount", "gst", "extras", "total", "collected", "walkin", "agent"] as const;
   const totals = Object.fromEntries(keys.map((k) => [k, list.reduce((s, r) => s + r[k], 0)])) as Report["totals"];
 
   let agents: Report["agents"] = [];

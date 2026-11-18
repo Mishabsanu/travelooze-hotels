@@ -66,7 +66,7 @@ export function RoleForm({ initial }: { initial?: Role }) {
                 <TextAreaField
                   name="description"
                   label="Description"
-                  className="md:col-span-2 lg:col-span-3"
+                  className="col-span-full"
                   placeholder="What this role is for"
                   maxLength={300}
                 />
@@ -77,7 +77,7 @@ export function RoleForm({ initial }: { initial?: Role }) {
                 title="Permissions"
                 description="Ticking Create, Update or Delete also grants View. Removing View clears the row."
               >
-                <div className="md:col-span-2 lg:col-span-3">
+                <div className="col-span-full">
                   <PermissionMatrix
                     value={values.permissions}
                     disabled={isSuperAdmin}

@@ -19,7 +19,7 @@ function ShellFrame({ children }: { children: ReactNode }) {
       <MobileNav modules={modules} open={menuOpen} onClose={closeMenu} />
       <div className="flex flex-1 min-h-screen">
         <LeftSidebar modules={modules} />
-        <main className="flex-1 print:m-0 ml-0 md:ml-[88px] mt-[88px] p-3 sm:p-4 lg:p-5 w-full min-w-0 overflow-x-hidden">
+        <main className="flex-1 print:m-0 ml-0 md:ml-[88px] mt-[88px] p-3 sm:p-4 lg:p-5 w-full min-w-0 overflow-x-clip">
           <div className="w-full space-y-4 sm:space-y-5">{children}</div>
         </main>
       </div>

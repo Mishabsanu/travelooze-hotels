@@ -42,7 +42,7 @@ export function SeasonEditor() {
   return (
     <FieldArray name="seasons">
       {({ push, remove }) => (
-        <div className="md:col-span-2 lg:col-span-3 space-y-3">
+        <div className="col-span-full space-y-3">
           {seasons.length === 0 && (
             <p className="text-xs text-slate-500">No seasons: the normal rates above are used all year. Add a season for peak / festival / off-season prices.</p>
           )}

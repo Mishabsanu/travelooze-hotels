@@ -37,6 +37,9 @@ export function FolioList({ booking: b }: { booking: Booking }) {
     }
   };
 
+  // Extra charges have no GST; the column only shows for older charges that were billed with GST
+  const anyGst = b.charges.some((c) => c.gstPercent > 0);
+
   return (
     <section className="space-y-3">
       <h2 className="text-xs font-bold text-brand uppercase tracking-wider pb-1.5 border-b border-slate-100 flex items-center gap-1.5">
@@ -49,7 +52,7 @@ export function FolioList({ booking: b }: { booking: Booking }) {
               <th className={`${th} text-left`}>Date</th>
               <th className={`${th} text-left`}>Item</th>
               <th className={`${th} text-right`}>Qty × Rate</th>
-              <th className={`${th} text-right`}>GST</th>
+              {anyGst && <th className={`${th} text-right`}>GST</th>}
               <th className={`${th} text-right`}>Total</th>
               {canRemove && <th className={`${th} w-10 no-print`} />}
             </tr>
@@ -67,9 +70,11 @@ export function FolioList({ booking: b }: { booking: Booking }) {
                 <td className={`${td} text-right tabular-nums`}>
                   {c.qty} × {formatINR(c.rate)}
                 </td>
-                <td className={`${td} text-right tabular-nums`}>
-                  {c.gstPercent}% · {formatINR(c.gstAmount)}
-                </td>
+                {anyGst && (
+                  <td className={`${td} text-right tabular-nums`}>
+                    {c.gstPercent > 0 ? `${c.gstPercent}% · ${formatINR(c.gstAmount)}` : "—"}
+                  </td>
+                )}
                 <td className={`${td} text-right tabular-nums font-semibold`}>{formatINR(c.total)}</td>
                 {canRemove && (
                   <td className={`${td} text-center no-print`}>

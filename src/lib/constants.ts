@@ -62,14 +62,14 @@ export function gstRateFor(ratePerNight: number): number {
 
 export const toOptions = (map: Record<string, string>) => Object.entries(map).map(([value, label]) => ({ value, label }));
 
-/** Extra charges on a booking (folio). GST % is the default and can be changed per charge. SAC = GST service code. */
+/** Extra charges on a booking (folio). Extra charges are billed without GST. SAC = service code shown on the invoice. */
 export const CHARGE_CATEGORIES = {
-  restaurant: { label: "Restaurant / Food", gst: 5, sac: "996331" },
-  room_service: { label: "Room Service", gst: 5, sac: "996332" },
-  laundry: { label: "Laundry", gst: 18, sac: "999712" },
-  minibar: { label: "Minibar", gst: 18, sac: "996331" },
-  transport: { label: "Transport / Cab", gst: 5, sac: "996412" },
-  other: { label: "Other Service", gst: 18, sac: "999799" },
+  restaurant: { label: "Restaurant / Food", gst: 0, sac: "996331" },
+  room_service: { label: "Room Service", gst: 0, sac: "996332" },
+  laundry: { label: "Laundry", gst: 0, sac: "999712" },
+  minibar: { label: "Minibar", gst: 0, sac: "996331" },
+  transport: { label: "Transport / Cab", gst: 0, sac: "996412" },
+  other: { label: "Other Service", gst: 0, sac: "999799" },
 } as const;
 export type ChargeCategory = keyof typeof CHARGE_CATEGORIES;
 
