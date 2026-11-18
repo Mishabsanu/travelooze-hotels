@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FormCard, FormSection } from "@/components/forms/FormCard";
-import { SearchSelectField, SelectField, TextField } from "@/components/forms/FormikFields";
+import { SearchSelectField, SelectField, TextAreaField, TextField } from "@/components/forms/FormikFields";
 import { FormField } from "@/components/ui/FormField";
 import { useApiSubmit } from "@/hooks/useApiSubmit";
 import { MEAL_PLANS, MEAL_PLAN_CODES, PAYMENT_MODES, PAYMENT_REF, toOptions, type MealPlan, type PaymentMode } from "@/lib/constants";
@@ -16,10 +16,12 @@ import { packageRates, perHeadRates, priceRooms, round2 } from "@/lib/pricing";
 import type { Option } from "@/lib/types";
 import { bookingSchema, type BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
+import { apiRequest } from "@/services/apiClient";
 import { bookingApi, idFileProblem } from "@/services/bookingApi";
 import { BOOKING_BASE } from "./bookingConfig";
 
 import { DiscountFields } from "./DiscountFields";
+import { ExtraChargesEditor, extrasTotal, type ExtraCharge } from "./ExtraChargesEditor";
 import { GuestFields } from "./GuestFields";
 import { OccupancyEditor } from "./OccupancyEditor";
 import { RoomPicker } from "./RoomPicker";
@@ -93,6 +95,24 @@ export function BookingForm(p: BookingFormProps) {
   const [moreOpen, setMoreOpen] = useState(isAgent);
   // "Save & Check In": after saving, open the booking with the check-in pop-up
   const checkInAfter = useRef(false);
+  // Extra charges typed while booking: added to the booking's bill right after it is saved
+  const [extras, setExtras] = useState<ExtraCharge[]>([]);
+  const filledExtras = extras.filter((c) => Number(c.amount) > 0);
+
+  /** Puts the extra charges on the saved booking (same as "Extra Charge" on the booking page). */
+  const addExtras = async (booking: Booking): Promise<Booking> => {
+    for (const c of filledExtras) {
+      booking = await apiRequest<Booking>(`/api/bookings/${booking._id}/charges`, "POST", {
+        category: c.category,
+        description: c.description.trim(),
+        qty: 1,
+        rate: Number(c.amount),
+        gstPercent: c.gstPercent,
+        date: "",
+      });
+    }
+    return booking;
+  };
 
   // Rooms with different dates (from the grid): one booking per date range, filled in once
   const groups = useMemo(() => groupStays(p.preset?.stays), [p.preset?.stays]);
@@ -205,6 +225,12 @@ export function BookingForm(p: BookingFormProps) {
           notes: [values.notes, `Booked together with other rooms on different dates (${groups.length} bookings)`].filter(Boolean).join("\n"),
         });
         if (p.canUploadId) b = await uploadIds(b, first ? values.aadhaar : "").catch(() => b);
+        if (first && filledExtras.length) {
+          b = await addExtras(b).catch((e) => {
+            toast.warning(`Extra charges not saved on ${b.bookingNo}: ${(e as Error).message}. Add them on the booking page.`);
+            return b;
+          });
+        }
         made.push(b);
       } catch (e) {
         // Never leave the form after a partial save: re-submitting would book the first rooms twice
@@ -230,6 +256,11 @@ export function BookingForm(p: BookingFormProps) {
         if (p.canUploadId) booking = await uploadIds(booking, values.aadhaar);
       } catch (e) {
         toast.warning(`Booking ${booking.bookingNo} saved, but: ${(e as Error).message}`);
+      }
+      try {
+        booking = await addExtras(booking);
+      } catch (e) {
+        toast.warning(`Booking ${booking.bookingNo} saved, but the extra charges were not: ${(e as Error).message}. Add them on the booking page.`);
       }
       return booking;
     },
@@ -505,6 +536,16 @@ export function BookingForm(p: BookingFormProps) {
                   </>
                 )}
 
+                {p.canPay && <ExtraChargesEditor value={extras} onChange={setExtras} />}
+                <TextAreaField
+                  name="notes"
+                  label="Notes"
+                  rows={2}
+                  maxLength={500}
+                  placeholder="Special requests, arrival details, anything the team should know…"
+                  className="md:col-span-2 lg:col-span-3"
+                />
+
                 <div className="md:col-span-2 lg:col-span-3 border border-line bg-white">
                   <table className="w-full text-xs">
                     <tbody className="divide-y divide-line">
@@ -520,11 +561,13 @@ export function BookingForm(p: BookingFormProps) {
                       {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
                       {price.discount > 0 && <SummaryRow k={`Discount (${round2(discount)}%)`} v={`− ${formatINR(price.discount)}`} />}
                       <SummaryRow k={values.withGst === false ? "GST (not charged)" : "GST"} v={formatINR(price.gstAmount)} />
+                      {filledExtras.length > 0 && <SummaryRow k="Room total" v={formatINR(price.total)} />}
+                      {filledExtras.length > 0 && <SummaryRow k={`Extra charges (${filledExtras.length}, incl. GST)`} v={formatINR(extrasTotal(filledExtras))} />}
                       <tr className="bg-brand-light">
                         <td className="px-3 py-2 font-bold text-brand uppercase tracking-wider text-[11px]">Total</td>
-                        <td className="px-3 py-2 text-right font-black text-base text-slate-900 tabular-nums">{formatINR(price.total)}</td>
+                        <td className="px-3 py-2 text-right font-black text-base text-slate-900 tabular-nums">{formatINR(price.total + extrasTotal(filledExtras))}</td>
                       </tr>
-                      {Number(values.advance) > 0 && <SummaryRow k="Balance after advance" v={formatINR(Math.max(0, price.total - Number(values.advance)))} />}
+                      {Number(values.advance) > 0 && <SummaryRow k="Balance after advance" v={formatINR(Math.max(0, price.total + extrasTotal(filledExtras) - Number(values.advance)))} />}
                     </tbody>
                   </table>
                 </div>
