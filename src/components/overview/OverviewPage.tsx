@@ -90,9 +90,9 @@ export async function OverviewPage() {
           tone="bg-rose-50 text-rose-700"
           label="Money to collect"
           value={formatINR(o.pending.amount)}
-          sub={o.pending.bookings ? `from ${o.pending.bookings} booking${o.pending.bookings > 1 ? "s" : ""}` : "nothing pending"}
+          sub={o.pending.bookings ? `Due now ${formatINR(o.pending.now)} · Upcoming ${formatINR(o.pending.upcoming)}` : "Everyone has paid"}
           danger={o.pending.amount > 0}
-          href={reports ? "/dashboard/reports/daily" : bookings ? `${BOOKINGS}?stay=inhouse` : undefined}
+          href={reports ? "/dashboard/reports/daily" : bookings ? BOOKINGS : undefined}
         />
       </div>
 

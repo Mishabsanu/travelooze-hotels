@@ -27,8 +27,8 @@ export interface Overview {
   today: string;
   hotels: HotelTonight[];
   totals: { rooms: number; occupied: number; arrivals: number; departures: number; inHouse: number; overdueArrivals: number };
-  /** Money still owed by guests in the house or already gone (room + extras − paid) */
-  pending: { amount: number; bookings: number };
+  /** Money not yet paid on every open booking (room + extras − paid): due now (staying / left) + upcoming (not arrived yet) */
+  pending: { amount: number; bookings: number; now: number; upcoming: number };
   month?: { revenue: number; bookings: number; collected: number };
   agentDues?: { _id: string; name: string; due: number; creditLimit: number }[];
 }
@@ -90,13 +90,19 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
 }
 
 async function pendingDues(scope: Record<string, unknown>): Promise<Overview["pending"]> {
-  const [m] = await Booking.aggregate<{ amount: number; bookings: number }>([
-    { $match: { ...scope, status: { $in: ["checked_in", "checked_out"] } } },
-    { $project: { due: { $subtract: [{ $add: ["$total", { $ifNull: ["$extrasTotal", 0] }] }, { $sum: "$payments.amount" }] } } },
+  const rows = await Booking.aggregate<{ _id: string; amount: number; bookings: number }>([
+    { $match: { ...scope, status: { $in: ["confirmed", "checked_in", "checked_out"] } } },
+    { $project: { status: 1, due: { $subtract: [{ $add: ["$total", { $ifNull: ["$extrasTotal", 0] }] }, { $sum: "$payments.amount" }] } } },
     { $match: { due: { $gt: 0.009 } } },
-    { $group: { _id: null, amount: { $sum: "$due" }, bookings: { $sum: 1 } } },
+    { $group: { _id: { $cond: [{ $eq: ["$status", "confirmed"] }, "upcoming", "now"] }, amount: { $sum: "$due" }, bookings: { $sum: 1 } } },
   ]);
-  return { amount: Math.round((m?.amount ?? 0) * 100) / 100, bookings: m?.bookings ?? 0 };
+  const get = (k: string) => Math.round((rows.find((r) => r._id === k)?.amount ?? 0) * 100) / 100;
+  return {
+    amount: Math.round((get("now") + get("upcoming")) * 100) / 100,
+    bookings: rows.reduce((s, r) => s + r.bookings, 0),
+    now: get("now"),
+    upcoming: get("upcoming"),
+  };
 }
 
 async function monthRevenue(scope: Record<string, unknown>, monthStart: Date): Promise<Overview["month"]> {

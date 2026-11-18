@@ -73,6 +73,9 @@ interface Props {
   itemName?: string;
 }
 
+/** Time of day in India, e.g. "2:05 pm" */
+const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+
 export function BookingListView({ data, hotelOptions, agentOnly, itemName = "bookings" }: Props) {
   const user = useSession();
   const columns = useMemo<Column<Booking>[]>(
@@ -110,46 +113,44 @@ export function BookingListView({ data, hotelOptions, agentOnly, itemName = "boo
       },
       {
         key: "checkIn",
-        label: "Stay",
-        render: (r) => (
-          <span className="flex flex-col">
-            <span>
-              {formatDay(r.checkIn)} → {formatDay(r.checkOut)}
-            </span>
-            <span className="text-[10.5px] text-slate-400">
-              {r.nights} night{r.nights > 1 ? "s" : ""} · {paxLabel(r.adults, r.children)} · ETA{" "}
-              {timeLabel(r.arrivalTime || r.hotel?.checkInTime || "12:00")}
-            </span>
-          </span>
-        ),
-      },
-      {
-        key: "checkedInAt",
-        label: "Checked In",
+        label: "Check-in",
+        // Done: the real date and time (green). Not yet: the booked date and expected time.
         render: (r) =>
           r.checkedInAt ? (
             <span className="flex flex-col">
-              <span>{formatDateTime(r.checkedInAt)}</span>
-              {isEarlyCheckIn(r) && <span className="text-[10px] font-bold text-amber-700">EARLY</span>}
+              <span className="font-semibold text-emerald-700">✓ {formatDay(r.checkedInAt)}</span>
+              <span className="text-[10.5px] text-emerald-700">
+                {clock(r.checkedInAt)}
+                {isEarlyCheckIn(r) && <b className="ml-1 text-amber-700">EARLY</b>}
+              </span>
             </span>
           ) : (
-            <span className="text-slate-300">—</span>
+            <span className="flex flex-col">
+              <span>{formatDay(r.checkIn)}</span>
+              <span className="text-[10.5px] text-slate-400">
+                expected {timeLabel(r.arrivalTime || r.hotel?.checkInTime || "12:00")} · {r.nights} night{r.nights > 1 ? "s" : ""}
+              </span>
+            </span>
           ),
-        hiddenByDefault: true,
       },
       {
-        key: "checkedOutAt",
-        label: "Checked Out",
+        key: "checkOut",
+        label: "Check-out",
         render: (r) =>
           r.checkedOutAt ? (
             <span className="flex flex-col">
-              <span>{formatDateTime(r.checkedOutAt)}</span>
-              {isLateCheckOut(r) && <span className="text-[10px] font-bold text-amber-700">LATE</span>}
+              <span className="font-semibold text-slate-700">✓ {formatDay(r.checkedOutAt)}</span>
+              <span className="text-[10.5px] text-slate-500">
+                {clock(r.checkedOutAt)}
+                {isLateCheckOut(r) && <b className="ml-1 text-amber-700">LATE</b>}
+              </span>
             </span>
           ) : (
-            <span className="text-slate-300">—</span>
+            <span className="flex flex-col">
+              <span>{formatDay(r.checkOut)}</span>
+              <span className="text-[10.5px] text-slate-400">expected {timeLabel(r.departureTime || r.hotel?.checkOutTime || "11:00")} · {paxLabel(r.adults, r.children)}</span>
+            </span>
           ),
-        hiddenByDefault: true,
       },
       { key: "mealPlan", label: "Plan", align: "center", render: (r) => <Badge variant="neutral">{r.mealPlan}</Badge> },
       { key: "source", label: "Source", render: (r) => <SourceBadge b={r} /> },

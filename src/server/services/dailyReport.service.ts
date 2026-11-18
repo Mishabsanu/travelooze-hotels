@@ -65,9 +65,9 @@ export interface DailyReport {
   arrivals: DailyMove[];
   departures: DailyMove[];
   payments: DailyPayment[];
-  /** Open money right now: guests in the house or already gone with a balance */
+  /** Open money right now: every booking not fully paid (left / staying first, then upcoming) */
   dues: DailyDue[];
-  dueTotals: { guest: number; agent: number; total: number };
+  dueTotals: { guest: number; agent: number; total: number; now: number; upcoming: number };
 }
 
 type Lean = {
@@ -148,7 +148,7 @@ export async function getDailyReport(user: SessionUser, dayStr?: string, hotelId
     Booking.find({ ...scope, checkOut: day, status: { $in: ["confirmed", "checked_in", "checked_out"] } }).select(fields).populate("agent", "name").sort({ status: 1, bookingNo: 1 }).lean<Lean[]>(),
     Booking.find({
       ...scope,
-      status: { $in: ["checked_in", "checked_out"] },
+      status: { $in: ["confirmed", "checked_in", "checked_out"] },
       $expr: { $gt: [{ $add: ["$total", { $ifNull: ["$extrasTotal", 0] }] }, { $add: [{ $sum: "$payments.amount" }, 0.009] }] },
     })
       .select(fields)
@@ -188,6 +188,9 @@ export async function getDailyReport(user: SessionUser, dayStr?: string, hotelId
     for (const c of b.charges ?? []) if (c.date >= day && c.date < next) extras += c.total;
   }
 
+  // Left without paying first, then guests staying, then upcoming bookings
+  const order: Record<string, number> = { checked_out: 0, checked_in: 1, confirmed: 2 };
+  dueDocs.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.checkIn.getTime() - b.checkIn.getTime());
   const dues: DailyDue[] = dueDocs.map((b) => ({
     bookingId: String(b._id),
     bookingNo: b.bookingNo,
@@ -213,6 +216,12 @@ export async function getDailyReport(user: SessionUser, dayStr?: string, hotelId
     departures: departureDocs.map(move),
     payments,
     dues,
-    dueTotals: { guest: sum("guestDue"), agent: sum("agentDue"), total: sum("balance") },
+    dueTotals: {
+      guest: sum("guestDue"),
+      agent: sum("agentDue"),
+      total: sum("balance"),
+      now: r2(dues.filter((d) => d.status !== "confirmed").reduce((s, d) => s + d.balance, 0)),
+      upcoming: r2(dues.filter((d) => d.status === "confirmed").reduce((s, d) => s + d.balance, 0)),
+    },
   };
 }

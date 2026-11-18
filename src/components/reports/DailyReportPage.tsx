@@ -75,7 +75,7 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
           {modes.length ? modes.map((m) => `${PAYMENT_MODES[m]} ${formatINR(r.collected.byMode[m])}`).join(" · ") : "No payment on this day"}
         </Tile>
         <Tile icon={<IndianRupee className="w-5 h-5" />} tone="bg-rose-50 text-rose-700 border-rose-200" label="Money to collect" value={formatINR(r.dueTotals.total)} strong={r.dueTotals.total > 0}>
-          {r.dues.length ? `${r.dues.length} booking${r.dues.length > 1 ? "s" : ""} not fully paid` : "Everyone has paid"}
+          {r.dues.length ? `Due now ${formatINR(r.dueTotals.now)} · Upcoming ${formatINR(r.dueTotals.upcoming)}` : "Everyone has paid"}
         </Tile>
         <Tile icon={<BedDouble className="w-5 h-5" />} tone="bg-brand-light text-brand border-brand-border" label="Rooms taken" value={`${r.occupancy.occupied} / ${r.occupancy.rooms}`}>
           {r.occupancy.pct}% full · {r.occupancy.rooms - r.occupancy.occupied} free
@@ -90,7 +90,7 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
       {/* Pending dues */}
       <Panel
         title={`Who still has to pay · ${r.dues.length}`}
-        note="Guests staying now or already left, with money not yet paid (shown as of now)"
+        note="Every booking not fully paid, as of now: guests who left, guests staying, then upcoming bookings"
         action={
           <CsvButton
             fileName={`pending-dues-${day}.csv`}
@@ -127,6 +127,7 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
                 <td className={`${td} text-center`}>
                   <BookingStatusBadge status={d.status as BookingStatus} />
                   {d.status === "checked_out" && <span className="block mt-0.5 text-[10px] font-bold text-rose-600">Left without paying</span>}
+                  {d.status === "confirmed" && <span className="block mt-0.5 text-[10px] font-bold text-slate-500">Not arrived yet</span>}
                 </td>
                 <td className={td}>
                   {formatDay(d.checkIn)} → {formatDay(d.checkOut)}
