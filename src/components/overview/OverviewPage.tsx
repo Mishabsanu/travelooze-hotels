@@ -1,9 +1,10 @@
-import { BarChart3, BedDouble, IndianRupee, LogIn, LogOut, Plus, UtensilsCrossed } from "lucide-react";
+import { BarChart3, BedDouble, CalendarClock, HandCoins, IndianRupee, LogIn, LogOut, Plus, Sparkles, UtensilsCrossed, Wallet } from "lucide-react";
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import type { SessionUser } from "@/lib/types";
 import { todayIST } from "@/server/services/stay";
 import { canBooking, canListBookings } from "@/lib/bookingAccess";
+import { PAYMENT_MODES, type PaymentMode } from "@/lib/constants";
 import { formatDay, formatINR, toDayString } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { requireUser } from "@/server/auth/session";
@@ -78,8 +79,8 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
   const meals = o.hotels.reduce((m, h) => ({ b: m.b + h.meals.breakfast, l: m.l + h.meals.lunch, d: m.d + h.meals.dinner }), { b: 0, l: 0, d: 0 });
   return (
     <>
-      {/* Four numbers, plain words */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      {/* Rooms and guests today */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Big
           icon={<BedDouble className="w-5 h-5" />}
           tone="bg-brand-light text-brand"
@@ -104,10 +105,32 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
           sub={o.totals.departures ? `${o.totals.departuresDone} checked out · ${o.totals.departures - o.totals.departuresDone} still here` : "no departures today"}
           href={bookings ? `${BOOKINGS}?stay=departures` : undefined}
         />
+      </div>
+
+      {/* Money today */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Big
+          icon={<Wallet className="w-5 h-5" />}
+          tone="bg-emerald-50 text-emerald-700"
+          label="Received today"
+          value={formatINR(o.received.amount)}
+          sub={o.received.count ? (Object.keys(PAYMENT_MODES) as PaymentMode[]).filter((m) => o.received.byMode[m] > 0).map((m) => `${PAYMENT_MODES[m]} ${formatINR(o.received.byMode[m])}`).join(" · ") : "No payment yet today"}
+          good={o.received.amount > 0}
+          href={reports ? "/dashboard/reports/daily" : undefined}
+        />
+        <Big
+          icon={<HandCoins className="w-5 h-5" />}
+          tone="bg-amber-50 text-amber-700"
+          label="To collect today"
+          value={formatINR(o.collectToday.amount)}
+          sub={o.collectToday.amount ? `Leaving ${formatINR(o.collectToday.leaving)} · Arriving ${formatINR(o.collectToday.arriving)}` : "Nothing to collect from today's guests"}
+          danger={o.collectToday.amount > 0}
+          href={bookings ? "/dashboard/overview/rooms?show=collect" : undefined}
+        />
         <Big
           icon={<IndianRupee className="w-5 h-5" />}
           tone="bg-rose-50 text-rose-700"
-          label="Money to collect"
+          label="All money to collect"
           value={formatINR(o.pending.amount)}
           sub={o.pending.bookings ? `Due now ${formatINR(o.pending.now)} · Upcoming ${formatINR(o.pending.upcoming)}` : "Everyone has paid"}
           danger={o.pending.amount > 0}
@@ -126,6 +149,14 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
         <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 text-slate-700">
           <UtensilsCrossed className="w-4 h-4 text-brand" />
           <b>Meals today:</b> Breakfast {meals.b} · Lunch {meals.l} · Dinner {meals.d}
+        </span>
+        <span className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 ${o.roomsToClean ? "border-amber-200 bg-amber-50 text-amber-800" : "border-line bg-white text-slate-700"}`}>
+          <Sparkles className="w-4 h-4" />
+          <b>Rooms to clean:</b> {o.roomsToClean}
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 text-slate-700">
+          <CalendarClock className="w-4 h-4 text-brand" />
+          <b>Arriving tomorrow:</b> {o.arrivalsTomorrow}
         </span>
         {bookings && (
           <Link href="/dashboard/overview/rooms" className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold text-brand hover:bg-brand-light">
@@ -168,8 +199,8 @@ const bone = "animate-pulse rounded bg-slate-200/80";
 
 function NumbersSkeleton() {
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-busy="true" aria-label="Loading">
-      {[0, 1, 2, 3].map((i) => (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-busy="true" aria-label="Loading">
+      {[0, 1, 2, 3, 4, 5].map((i) => (
         <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
           <div className={`${bone} h-4 w-32`} />
           <div className={`${bone} h-8 w-20`} />
@@ -200,14 +231,14 @@ function DeskSkeleton() {
   );
 }
 
-function Big({ icon, tone, label, value, sub, href, danger }: { icon: ReactNode; tone: string; label: string; value: string; sub: string; href?: string; danger?: boolean }) {
+function Big({ icon, tone, label, value, sub, href, danger, good }: { icon: ReactNode; tone: string; label: string; value: string; sub: string; href?: string; danger?: boolean; good?: boolean }) {
   const body = (
     <div className="h-full bg-white rounded-xl border border-slate-200 p-4 shadow-xs hover:shadow-md hover:border-slate-300 transition">
       <div className="flex items-center gap-2">
         <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${tone}`}>{icon}</span>
         <span className="text-sm font-semibold text-slate-600">{label}</span>
       </div>
-      <p className={`mt-2 text-3xl font-black tabular-nums ${danger ? "text-rose-600" : "text-slate-900"}`}>{value}</p>
+      <p className={`mt-2 text-3xl font-black tabular-nums ${danger ? "text-rose-600" : good ? "text-emerald-700" : "text-slate-900"}`}>{value}</p>
       <p className="text-xs text-slate-500">{sub}</p>
     </div>
   );

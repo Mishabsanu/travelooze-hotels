@@ -1,14 +1,15 @@
 import "server-only";
 import type { Types } from "mongoose";
-import { MEAL_PLANS, type MealPlan } from "@/lib/constants";
+import { MEAL_PLANS, PAYMENT_MODES, type MealPlan, type PaymentMode } from "@/lib/constants";
 import type { SessionUser } from "@/lib/types";
 import { hotelScope } from "../auth/session";
 import { Booking } from "../models/Booking";
 import { Hotel } from "../models/Hotel";
 import { Room } from "../models/Room";
 import { RoomNight } from "../models/RoomNight";
+import { bookingMoney } from "./bookingMoney";
 import { hotelIdFilter } from "./hotel.service";
-import { todayIST } from "./stay";
+import { addDays, todayIST } from "./stay";
 
 export interface HotelTonight {
   _id: string;
@@ -27,6 +28,30 @@ export interface Overview {
   totals: { rooms: number; occupied: number; arrivals: number; arrivalsDone: number; departures: number; departuresDone: number; inHouse: number; overdueArrivals: number };
   /** Money not yet paid on every open booking (room + extras − paid): due now (staying / left) + upcoming (not arrived yet) */
   pending: { amount: number; bookings: number; now: number; upcoming: number };
+  /** Payments taken today, by mode */
+  received: { amount: number; count: number; byMode: Record<PaymentMode, number> };
+  /** What guests at the desk today still owe: leaving today (still here) + arriving today (not checked in yet) */
+  collectToday: { amount: number; leaving: number; arriving: number; bookings: number };
+  /** Small extras */
+  roomsToClean: number;
+  arrivalsTomorrow: number;
+}
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** What the guests at the desk today still have to pay (agent-billed: only their extras). */
+function collectToday(list: { status: string; billTo: "guest" | "agent"; total: number; extrasTotal?: number; payments?: { amount: number; paidBy: "guest" | "agent" }[] }[]) {
+  let leaving = 0;
+  let arriving = 0;
+  let bookings = 0;
+  for (const b of list) {
+    const due = bookingMoney(b).guestDue;
+    if (due <= 0) continue;
+    bookings += 1;
+    if (b.status === "checked_in") leaving += due;
+    else arriving += due;
+  }
+  return { amount: r2(leaving + arriving), leaving: r2(leaving), arriving: r2(arriving), bookings };
 }
 
 const countBy = (rows: { _id: Types.ObjectId; n: number }[]) => new Map(rows.map((r) => [String(r._id), r.n]));
@@ -38,7 +63,7 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
   // Check-out times are moments: today in India runs 18:30 UTC (yesterday) → 18:30 UTC
   const dayStart = new Date(today.getTime() - 5.5 * 3600_000);
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
-  const [hotels, rooms, occupied, arrivals, departures, inHouse, overdueArrivals, pending, arrivalsDone, departuresDone] = await Promise.all([
+  const [hotels, rooms, occupied, arrivals, departures, inHouse, overdueArrivals, pending, arrivalsDone, departuresDone, paidToday, deskToday, roomsToClean, arrivalsTomorrow] = await Promise.all([
     Hotel.find({ ...hotelIdFilter(user), status: "active" }).sort({ name: 1 }).select("name").lean(),
     Room.aggregate([{ $match: { ...scope, status: "active" } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
     RoomNight.aggregate([{ $match: { ...scope, date: today } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
@@ -51,6 +76,19 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
     pendingDues(scope),
     Booking.countDocuments({ ...scope, checkIn: today, status: { $in: ["checked_in", "checked_out"] } }),
     Booking.countDocuments({ ...scope, status: "checked_out", checkedOutAt: { $gte: dayStart, $lt: dayEnd } }),
+    // Payments taken today (any booking)
+    Booking.aggregate<{ _id: PaymentMode; amount: number; count: number }>([
+      { $match: { ...scope, "payments.at": { $gte: dayStart, $lt: dayEnd } } },
+      { $unwind: "$payments" },
+      { $match: { "payments.at": { $gte: dayStart, $lt: dayEnd } } },
+      { $group: { _id: "$payments.mode", amount: { $sum: "$payments.amount" }, count: { $sum: 1 } } },
+    ]),
+    // Guests at the desk today: leaving (still here) or arriving (not checked in yet)
+    Booking.find({ ...scope, $or: [{ status: "checked_in", checkOut: { $lte: today } }, { status: "confirmed", checkIn: today }] })
+      .select("status billTo total extrasTotal payments.amount payments.paidBy")
+      .lean<{ status: string; billTo: "guest" | "agent"; total: number; extrasTotal?: number; payments?: { amount: number; paidBy: "guest" | "agent" }[] }[]>(),
+    Room.countDocuments({ ...scope, status: "active", housekeeping: "cleaning" }),
+    Booking.countDocuments({ ...scope, status: "confirmed", checkIn: addDays(today, 1) }),
   ]);
   const [rc, oc, ac, dc] = [rooms, occupied, arrivals, departures].map(countBy);
 
@@ -78,6 +116,14 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
 
   const overview: Overview = {
     pending,
+    received: {
+      amount: r2(paidToday.reduce((s, p) => s + p.amount, 0)),
+      count: paidToday.reduce((s, p) => s + p.count, 0),
+      byMode: Object.fromEntries(Object.keys(PAYMENT_MODES).map((m) => [m, r2(paidToday.find((p) => p._id === m)?.amount ?? 0)])) as Record<PaymentMode, number>,
+    },
+    collectToday: collectToday(deskToday),
+    roomsToClean,
+    arrivalsTomorrow,
     today: today.toISOString(),
     hotels: list,
     totals: { rooms: sum("rooms"), occupied: sum("occupied"), arrivals: sum("arrivals"), arrivalsDone, departures: sum("departures"), departuresDone, inHouse: inHouse.length, overdueArrivals },
