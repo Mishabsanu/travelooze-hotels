@@ -1,4 +1,4 @@
-import { BedDouble, ChevronLeft, ChevronRight, IndianRupee, LogIn, LogOut, TrendingUp, Wallet } from "lucide-react";
+import { BedDouble, ChevronLeft, ChevronRight, IndianRupee, LogIn, Wallet } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { BOOKING_BASE } from "@/components/bookings/bookingConfig";
@@ -38,7 +38,7 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
     <>
       <PageHeader
         title={`Daily Report · ${formatDay(r.day)}`}
-        description={r.isToday ? "Today so far. Money received, money earned, guests in and out, and every unpaid balance." : "Money received, money earned and guests in and out on this day."}
+        description="How much money came in, who still has to pay, and which guests came and left."
         actions={<PrintButton />}
       />
 
@@ -69,32 +69,28 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
         )}
       </form>
 
-      {/* Key numbers */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3">
-        <Tile icon={<Wallet className="w-4.5 h-4.5" />} tone="bg-emerald-50 text-emerald-700 border-emerald-200" label="Collected" value={formatINR(r.collected.total)}>
-          {modes.length ? modes.map((m) => `${PAYMENT_MODES[m]} ${formatINR(r.collected.byMode[m])}`).join(" · ") : "No payments"}
+      {/* Four numbers, plain words */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <Tile icon={<Wallet className="w-5 h-5" />} tone="bg-emerald-50 text-emerald-700 border-emerald-200" label="Money received" value={formatINR(r.collected.total)}>
+          {modes.length ? modes.map((m) => `${PAYMENT_MODES[m]} ${formatINR(r.collected.byMode[m])}`).join(" · ") : "No payment on this day"}
         </Tile>
-        <Tile icon={<TrendingUp className="w-4.5 h-4.5" />} tone="bg-sky-50 text-sky-700 border-sky-200" label="Earned this day" value={formatINR(r.earned.total)}>
-          Rooms {formatINR(r.earned.rooms)} · Extras {formatINR(r.earned.extras)}
+        <Tile icon={<IndianRupee className="w-5 h-5" />} tone="bg-rose-50 text-rose-700 border-rose-200" label="Money to collect" value={formatINR(r.dueTotals.total)} strong={r.dueTotals.total > 0}>
+          {r.dues.length ? `${r.dues.length} booking${r.dues.length > 1 ? "s" : ""} not fully paid` : "Everyone has paid"}
         </Tile>
-        <Tile icon={<IndianRupee className="w-4.5 h-4.5" />} tone="bg-rose-50 text-rose-700 border-rose-200" label="Pending dues (now)" value={formatINR(r.dueTotals.total)} strong={r.dueTotals.total > 0}>
-          Guests {formatINR(r.dueTotals.guest)} · Agents {formatINR(r.dueTotals.agent)}
+        <Tile icon={<BedDouble className="w-5 h-5" />} tone="bg-brand-light text-brand border-brand-border" label="Rooms taken" value={`${r.occupancy.occupied} / ${r.occupancy.rooms}`}>
+          {r.occupancy.pct}% full · {r.occupancy.rooms - r.occupancy.occupied} free
         </Tile>
-        <Tile icon={<BedDouble className="w-4.5 h-4.5" />} tone="bg-brand-light text-brand border-brand-border" label="Occupancy" value={`${r.occupancy.pct}%`}>
-          {r.occupancy.occupied} of {r.occupancy.rooms} rooms
-        </Tile>
-        <Tile icon={<LogIn className="w-4.5 h-4.5" />} tone="bg-sky-50 text-sky-700 border-sky-200" label="Arrivals" value={`${arrived} / ${r.arrivals.length}`}>
-          {r.arrivals.length - arrived ? `${r.arrivals.length - arrived} not checked in` : "All checked in"}
-        </Tile>
-        <Tile icon={<LogOut className="w-4.5 h-4.5" />} tone="bg-amber-50 text-amber-700 border-amber-200" label="Departures" value={`${left} / ${r.departures.length}`}>
-          {r.departures.length - left ? `${r.departures.length - left} not checked out` : "All checked out"}
+        <Tile icon={<LogIn className="w-5 h-5" />} tone="bg-sky-50 text-sky-700 border-sky-200" label="Guests in / out" value={`${arrived} in · ${left} out`}>
+          {r.arrivals.length - arrived || r.departures.length - left
+            ? `Still waiting: ${r.arrivals.length - arrived} to check in, ${r.departures.length - left} to check out`
+            : "All check-ins and check-outs done"}
         </Tile>
       </div>
 
       {/* Pending dues */}
       <Panel
-        title={`Pending Dues · ${r.dues.length}`}
-        note="Guests in the house or already checked out who still owe money (as of now)"
+        title={`Who still has to pay · ${r.dues.length}`}
+        note="Guests staying now or already left, with money not yet paid (shown as of now)"
         action={
           <CsvButton
             fileName={`pending-dues-${day}.csv`}
@@ -114,7 +110,7 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
               <th className={`${th} text-left`}>Bill to</th>
               <th className={`${th} text-right`}>Total</th>
               <th className={`${th} text-right`}>Paid</th>
-              <th className={`${th} text-right`}>Balance</th>
+              <th className={`${th} text-right`}>To pay</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -130,7 +126,7 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
                 <td className={`${td} font-mono`}>{d.rooms}</td>
                 <td className={`${td} text-center`}>
                   <BookingStatusBadge status={d.status as BookingStatus} />
-                  {d.status === "checked_out" && <span className="block mt-0.5 text-[10px] font-bold text-rose-600">Left with due</span>}
+                  {d.status === "checked_out" && <span className="block mt-0.5 text-[10px] font-bold text-rose-600">Left without paying</span>}
                 </td>
                 <td className={td}>
                   {formatDay(d.checkIn)} → {formatDay(d.checkOut)}
@@ -150,7 +146,7 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
             <tfoot>
               <tr className="border-t-2 border-line bg-head font-bold">
                 <td className={td} colSpan={6}>
-                  Total pending
+                  Total to collect
                 </td>
                 <td className={`${td} text-right tabular-nums`}>{formatINR(r.dues.reduce((s, d) => s + d.grandTotal, 0))}</td>
                 <td className={`${td} text-right tabular-nums`}>{formatINR(r.dues.reduce((s, d) => s + d.paid, 0))}</td>
@@ -163,7 +159,7 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
 
       {/* Payments received */}
       <Panel
-        title={`Payments Received · ${r.payments.length}`}
+        title={`Money received · ${r.payments.length} payment${r.payments.length === 1 ? "" : "s"}`}
         note={`Every payment taken on ${formatDay(r.day)}`}
         action={
           <CsvButton
@@ -221,10 +217,10 @@ export async function DailyReportPage({ searchParams }: { searchParams: SearchPa
 
       {/* Guests in / out */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <Panel title={`Arrivals · ${r.arrivals.length}`} note={`Check-in on ${formatDay(r.day)}`}>
+        <Panel title={`Guests coming · ${r.arrivals.length}`} note={`Check-in date ${formatDay(r.day)}`}>
           <MoveTable rows={r.arrivals} empty="No arrivals" />
         </Panel>
-        <Panel title={`Departures · ${r.departures.length}`} note={`Check-out on ${formatDay(r.day)}`}>
+        <Panel title={`Guests leaving · ${r.departures.length}`} note={`Check-out date ${formatDay(r.day)}`}>
           <MoveTable rows={r.departures} empty="No departures" />
         </Panel>
       </div>
@@ -241,7 +237,7 @@ function MoveTable({ rows, empty }: { rows: DailyMove[]; empty: string }) {
           <th className={`${th} text-left`}>Guest</th>
           <th className={`${th} text-left`}>Rooms</th>
           <th className={`${th} text-center`}>Status</th>
-          <th className={`${th} text-right`}>Balance</th>
+          <th className={`${th} text-right`}>To pay</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-line">
@@ -274,7 +270,7 @@ function Tile({ icon, tone, label, value, strong, children }: { icon: ReactNode;
     <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">{label}</p>
+          <p className="text-sm font-semibold text-slate-600">{label}</p>
           <p className={`text-2xl font-black mt-1 tabular-nums ${strong ? "text-rose-600" : "text-slate-900"}`}>{value}</p>
         </div>
         <span className={`w-9 h-9 shrink-0 rounded-lg border flex items-center justify-center ${tone}`}>{icon}</span>

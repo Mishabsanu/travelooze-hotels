@@ -11,7 +11,7 @@ import { GlobalSearch } from "./GlobalSearch";
 import { findActiveModule, isActivePath, type NavModule } from "./navigation";
 import { UserMenu } from "./UserMenu";
 
-/** Two rows: brand bar (search + New Booking) → the active module's pages. Modules are picked in the left rail (menu button on phones). */
+/** Three tiers, as in Proserve ERP: brand bar (search + New Booking) → module tabs → active module's sub-tabs. */
 export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: () => void }) {
   const pathname = usePathname() || "";
   const user = useSession();
@@ -59,11 +59,28 @@ export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: (
         </div>
       </header>
 
+      {/* Module tabs (as in Proserve ERP) */}
+      <div className="bg-white border-b border-line px-3 sm:px-6 flex items-center h-[40px]">
+        <div className="flex items-center gap-5 sm:gap-8 overflow-x-auto no-scrollbar">
+          {modules.map((mod) => {
+            const active = mod.id === activeModule?.id;
+            return (
+              <Link
+                key={mod.id}
+                href={mod.items[0].href}
+                className={`py-2.5 shrink-0 text-xs font-semibold uppercase tracking-wider relative ${active ? "text-brand font-bold" : "text-slate-600 hover:text-slate-900"}`}
+              >
+                {mod.label}
+                {active && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0 border-x-[5px] border-x-transparent border-b-[5px] border-b-brand" />}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Sub-tabs: pages of the active module */}
       <div className="bg-white border-b border-line px-3 sm:px-6 flex items-center h-[38px]">
         <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
-          {activeModule && (
-            <span className="shrink-0 text-xs font-bold uppercase tracking-wider text-brand pr-6 border-r border-line">{activeModule.label}</span>
-          )}
           {activeModule?.items.map((item) => {
             // Most specific match wins, so "/dashboard/stock" is not active on "/dashboard/stock/in"
             const best = activeModule.items

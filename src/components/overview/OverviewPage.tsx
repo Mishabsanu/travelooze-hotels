@@ -1,240 +1,145 @@
-import { BedDouble, CalendarClock, DoorOpen, IndianRupee, LogIn, LogOut, Plus, Users } from "lucide-react";
+import { BarChart3, BedDouble, IndianRupee, LogIn, LogOut, Plus, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
-import { StatCard } from "@/components/dashboard/StatCard";
-import { PageHeader } from "@/components/ui/PageHeader";
+import type { ReactNode } from "react";
 import { canBooking, canListBookings } from "@/lib/bookingAccess";
-import { parseListQuery } from "@/server/http/query";
-import { listBookings } from "@/server/services/booking/booking.service";
-import { TodayDesk } from "./TodayDesk";
 import { formatDay, formatINR } from "@/lib/format";
 import { can } from "@/lib/permissions";
 import { requireUser } from "@/server/auth/session";
-import { TrendCharts } from "@/components/analytics/AnalyticsViews";
-import { getAnalytics } from "@/server/services/analytics.service";
+import { parseListQuery } from "@/server/http/query";
+import { listBookings } from "@/server/services/booking/booking.service";
 import { getOverview } from "@/server/services/overview.service";
-import { addDays, todayIST } from "@/server/services/stay";
+import { TodayDesk } from "./TodayDesk";
 
 const BOOKINGS = "/dashboard/front-office/bookings";
-const th = "px-3 py-2 border-r border-line last:border-r-0 whitespace-nowrap";
-const td = "px-3 py-2 border-r border-line last:border-r-0 whitespace-nowrap";
 
+/**
+ * Home: what the front desk needs today, in plain words.
+ * 4 numbers → who is coming / leaving / staying (with the buttons) → kitchen count. Charts live on their own page.
+ */
 export async function OverviewPage() {
   const user = await requireUser();
-  const showTrends = can(user, "report", "view");
-  const today = todayIST();
   const bookings = canListBookings(user);
-  // Today's desk: who arrives, who leaves, who is in the house (50 each is more than a day's work)
+  const reports = can(user, "report", "view");
+  // Today's lists: who arrives, who leaves, who is in the house (50 each is more than a day's work)
   const stay = (s: string) => (bookings ? listBookings(parseListQuery({ stay: s, limit: "50", sort: "checkIn" }, ["stay"]), user).then((r) => r.items) : Promise.resolve([]));
-  const [o, trends, arriving, leaving, inHouse] = await Promise.all([
-    getOverview(user),
-    showTrends ? getAnalytics(user, addDays(today, -29), today, "day") : null,
-    stay("arrivals"),
-    stay("departures"),
-    stay("inhouse"),
-  ]);
+  const [o, arriving, leaving, inHouse] = await Promise.all([getOverview(user), stay("arrivals"), stay("departures"), stay("inhouse")]);
   const canWalkin = canBooking(user, "walkin", "create");
   const canAgent = canBooking(user, "agent", "create");
-  const occ = o.totals.rooms ? Math.round((o.totals.occupied / o.totals.rooms) * 100) : 0;
-  const href = (q: string) => (bookings ? `${BOOKINGS}?${q}` : undefined);
+  const free = o.totals.rooms - o.totals.occupied;
+  const meals = o.hotels.reduce((m, h) => ({ b: m.b + h.meals.breakfast, l: m.l + h.meals.lunch, d: m.d + h.meals.dinner }), { b: 0, l: 0, d: 0 });
+  const hour = Number(new Date().toLocaleString("en-IN", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }));
+  const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <>
-      <PageHeader
-        title={`Today · ${formatDay(o.today)}`}
-        description={`Hello ${user.name.split(" ")[0]} · ${user.activeHotelId ? o.hotels[0]?.name ?? "" : user.allHotels ? "all hotels" : `${o.hotels.length} hotel(s)`}`}
-        actions={
-          (canWalkin || canAgent) && (
-            <>
-              {canWalkin && (
-                <Link href={`${BOOKINGS}/new`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-bold shadow-sm">
-                  <Plus className="w-5 h-5" /> New Walk-in
-                </Link>
-              )}
-              {canAgent && (
-                <Link href={`${BOOKINGS}/new-agent`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-brand-border bg-white text-brand hover:bg-brand-light text-sm font-bold">
-                  <Plus className="w-5 h-5" /> Agent Booking
-                </Link>
-              )}
-            </>
-          )
-        }
-      />
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-        <StatCard label="Occupancy Tonight" value={`${occ}%`} hint={`${o.totals.occupied} of ${o.totals.rooms} rooms`} icon={BedDouble} />
-        <StatCard label="Arrivals Today" value={o.totals.arrivals} icon={LogIn} tone="info" href={href("stay=arrivals")} />
-        <StatCard label="Departures Today" value={o.totals.departures} icon={LogOut} tone="warning" href={href("stay=departures")} />
-        <StatCard label="In-house" value={o.totals.inHouse} icon={Users} tone="success" href={href("stay=inhouse")} />
-        <StatCard label="Free Rooms Tonight" value={o.totals.rooms - o.totals.occupied} icon={DoorOpen} tone="brand" />
-        {o.month ? (
-          <StatCard label="Booked This Month" value={formatINR(o.month.revenue)} hint={`${o.month.bookings} bookings · ${formatINR(o.month.collected)} collected`} icon={IndianRupee} tone="success" />
-        ) : (
-          <StatCard
-            label="Missed Arrivals"
-            value={o.totals.overdueArrivals}
-            hint="Past check-in, never arrived"
-            icon={CalendarClock}
-            tone={o.totals.overdueArrivals ? "danger" : "brand"}
-            href={href("status=confirmed&sort=checkIn")}
-          />
+      {/* Greeting + the two main buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">
+            {hello}, {user.name.split(" ")[0]}
+          </h1>
+          <p className="text-sm text-slate-500">
+            {formatDay(o.today)}
+            {o.hotels.length === 1 ? ` · ${o.hotels[0].name}` : o.hotels.length > 1 ? ` · ${o.hotels.length} hotels` : ""}
+          </p>
+        </div>
+        {(canWalkin || canAgent) && (
+          <div className="flex flex-wrap gap-2">
+            {canWalkin && (
+              <Link href={`${BOOKINGS}/new`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-bold shadow-sm">
+                <Plus className="w-5 h-5" /> New Walk-in
+              </Link>
+            )}
+            {canAgent && (
+              <Link href={`${BOOKINGS}/new-agent`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-brand-border bg-white text-brand hover:bg-brand-light text-sm font-bold">
+                <Plus className="w-5 h-5" /> Agent Booking
+              </Link>
+            )}
+          </div>
         )}
       </div>
 
-      {o.totals.overdueArrivals > 0 && bookings && (
-        <div className="text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          {o.totals.overdueArrivals} confirmed booking(s) have a past check-in date and were never checked in.{" "}
-          <Link href={`${BOOKINGS}?status=confirmed&sort=checkIn`} className="underline font-bold">
-            Review — check in or mark no-show
-          </Link>
-        </div>
-      )}
-
-      {bookings && (
-        <TodayDesk
-          arriving={arriving}
-          leaving={leaving}
-          inHouse={inHouse}
-          canCheck={can(user, "check_in_out", "update")}
-          canPay={can(user, "payment", "create")}
+      {/* Four numbers, plain words */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <Big
+          icon={<BedDouble className="w-5 h-5" />}
+          tone="bg-brand-light text-brand"
+          label="Rooms free tonight"
+          value={`${free}`}
+          sub={`${o.totals.occupied} of ${o.totals.rooms} rooms are taken`}
+          href={bookings ? "/dashboard/front-office/availability" : undefined}
         />
-      )}
-
-      {trends && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-slate-800">Last 30 days</h2>
-            <Link href="/dashboard/overview/analytics" className="text-xs font-bold text-brand hover:underline">
-              Open analytics (week / month / year) →
-            </Link>
-          </div>
-          <TrendCharts a={trends} />
-        </section>
-      )}
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <Panel title="Hotels Tonight">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className={`${th} text-left`}>Hotel</th>
-                <th className={`${th} text-center`}>Rooms</th>
-                <th className={`${th} text-center`}>Occupied</th>
-                <th className={`${th} text-center`}>Arrivals</th>
-                <th className={`${th} text-center`}>Departures</th>
-                <th className={`${th} text-right`}>Occ %</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {o.hotels.map((h) => {
-                const pct = h.rooms ? Math.round((h.occupied / h.rooms) * 100) : 0;
-                return (
-                  <tr key={h._id} className="hover:bg-head">
-                    <td className={`${td} font-semibold`}>
-                      {bookings ? (
-                        <Link href={`/dashboard/front-office/availability?hotel=${h._id}`} className="text-brand hover:underline">
-                          {h.name}
-                        </Link>
-                      ) : (
-                        h.name
-                      )}
-                    </td>
-                    <td className={`${td} text-center`}>{h.rooms}</td>
-                    <td className={`${td} text-center`}>{h.occupied}</td>
-                    <td className={`${td} text-center`}>{h.arrivals}</td>
-                    <td className={`${td} text-center`}>{h.departures}</td>
-                    <td className={`${td} text-right`}>
-                      <span className="inline-flex items-center gap-2">
-                        <span className="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <span className="block h-full bg-brand" style={{ width: `${pct}%` }} />
-                        </span>
-                        <span className="tabular-nums font-semibold w-8">{pct}%</span>
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-              {o.hotels.length === 0 && <Empty span={6} text="No hotel assigned to you yet" />}
-            </tbody>
-          </table>
-        </Panel>
-
-        <Panel title="Kitchen — Meals for In-house Guests" note="Guests × meals included in their plan (EP / CP / MAP / AP)">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className={`${th} text-left`}>Hotel</th>
-                <th className={`${th} text-center`}>Breakfast</th>
-                <th className={`${th} text-center`}>Lunch</th>
-                <th className={`${th} text-center`}>Dinner</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {o.hotels.map((h) => (
-                <tr key={h._id}>
-                  <td className={`${td} font-semibold`}>{h.name}</td>
-                  <td className={`${td} text-center tabular-nums`}>{h.meals.breakfast}</td>
-                  <td className={`${td} text-center tabular-nums`}>{h.meals.lunch}</td>
-                  <td className={`${td} text-center tabular-nums`}>{h.meals.dinner}</td>
-                </tr>
-              ))}
-              {o.hotels.length === 0 && <Empty span={4} text="—" />}
-            </tbody>
-          </table>
-        </Panel>
+        <Big
+          icon={<LogIn className="w-5 h-5" />}
+          tone="bg-sky-50 text-sky-700"
+          label="Coming today"
+          value={`${o.totals.arrivals}`}
+          sub={o.totals.arrivals ? "guests still to check in" : "everyone has arrived"}
+          href={bookings ? `${BOOKINGS}?stay=arrivals` : undefined}
+        />
+        <Big
+          icon={<LogOut className="w-5 h-5" />}
+          tone="bg-amber-50 text-amber-700"
+          label="Leaving today"
+          value={`${o.totals.departures}`}
+          sub={o.totals.departures ? "guests still to check out" : "nobody left to check out"}
+          href={bookings ? `${BOOKINGS}?stay=departures` : undefined}
+        />
+        <Big
+          icon={<IndianRupee className="w-5 h-5" />}
+          tone="bg-rose-50 text-rose-700"
+          label="Money to collect"
+          value={formatINR(o.pending.amount)}
+          sub={o.pending.bookings ? `from ${o.pending.bookings} booking${o.pending.bookings > 1 ? "s" : ""}` : "nothing pending"}
+          danger={o.pending.amount > 0}
+          href={reports ? "/dashboard/reports/daily" : bookings ? `${BOOKINGS}?stay=inhouse` : undefined}
+        />
       </div>
 
-      {o.agentDues && (
-        <Panel title="Agent Outstanding" note="Top agents by balance billed to their account">
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className={`${th} text-left`}>Agent</th>
-                <th className={`${th} text-right`}>Outstanding</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {o.agentDues.map((a) => (
-                <tr key={a._id}>
-                  <td className={td}>
-                    <Link href={`/dashboard/sales/agents/${a._id}`} className="text-brand font-semibold hover:underline">
-                      {a.name}
-                    </Link>
-                  </td>
-                  <td className={`${td} text-right tabular-nums font-semibold text-amber-700`}>
-                    {formatINR(a.due)}
-                  </td>
-                </tr>
-              ))}
-              {o.agentDues.length === 0 && <Empty span={2} text="No outstanding balances" />}
-            </tbody>
-          </table>
-        </Panel>
+      {o.totals.overdueArrivals > 0 && bookings && (
+        <Link href={`${BOOKINGS}?status=confirmed&sort=checkIn`} className="block text-sm font-medium text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 hover:bg-amber-100">
+          ⚠ {o.totals.overdueArrivals} guest{o.totals.overdueArrivals > 1 ? "s" : ""} did not come on their check-in date. <b className="underline">Check in or mark no-show →</b>
+        </Link>
       )}
+
+      {/* Who is coming, leaving, staying — with the buttons */}
+      {bookings && <TodayDesk arriving={arriving} leaving={leaving} inHouse={inHouse} canCheck={can(user, "check_in_out", "update")} canPay={can(user, "payment", "create")} />}
+
+      {/* Small extras */}
+      <div className="flex flex-wrap gap-3 text-sm">
+        <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 text-slate-700">
+          <UtensilsCrossed className="w-4 h-4 text-brand" />
+          <b>Meals today:</b> Breakfast {meals.b} · Lunch {meals.l} · Dinner {meals.d}
+        </span>
+        {reports && (
+          <Link href="/dashboard/overview/analytics" className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold text-brand hover:bg-brand-light">
+            <BarChart3 className="w-4 h-4" /> Sales charts →
+          </Link>
+        )}
+        {reports && (
+          <Link href="/dashboard/reports/daily" className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold text-brand hover:bg-brand-light">
+            <IndianRupee className="w-4 h-4" /> Today&apos;s money report →
+          </Link>
+        )}
+      </div>
+
       {!can(user, "booking", "view") && !can(user, "agent_booking", "view") && !can(user, "agent", "view") && (
-        <p className="text-xs text-slate-500">Your role has no booking permissions yet. Ask an admin to update your role.</p>
+        <p className="text-sm text-slate-500">Your role has no booking permissions yet. Ask an admin to update your role.</p>
       )}
     </>
   );
 }
 
-function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white border border-line">
-      <div className="px-3 py-2 border-b border-line flex items-baseline justify-between gap-2">
-        <h2 className="text-[11px] font-bold text-brand uppercase tracking-wider">{title}</h2>
-        {note && <span className="text-[10.5px] text-slate-400">{note}</span>}
+function Big({ icon, tone, label, value, sub, href, danger }: { icon: ReactNode; tone: string; label: string; value: string; sub: string; href?: string; danger?: boolean }) {
+  const body = (
+    <div className="h-full bg-white rounded-xl border border-slate-200 p-4 shadow-xs hover:shadow-md hover:border-slate-300 transition">
+      <div className="flex items-center gap-2">
+        <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${tone}`}>{icon}</span>
+        <span className="text-sm font-semibold text-slate-600">{label}</span>
       </div>
-      <div className="overflow-x-auto">{children}</div>
+      <p className={`mt-2 text-3xl font-black tabular-nums ${danger ? "text-rose-600" : "text-slate-900"}`}>{value}</p>
+      <p className="text-xs text-slate-500">{sub}</p>
     </div>
   );
-}
-
-function Empty({ span, text }: { span: number; text: string }) {
-  return (
-    <tr>
-      <td colSpan={span} className="px-6 py-8 text-center text-slate-400">
-        {text}
-      </td>
-    </tr>
-  );
+  return href ? <Link href={href}>{body}</Link> : body;
 }

@@ -16,11 +16,12 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
   if (!allowed) return <AccessDenied />;
   const sp = await searchParams;
   const r = await getReport(user, first(sp.from), first(sp.to), can(user, "agent", "view") || user.allHotels);
-  const money = ["roomCharges", "discount", "gst", "extras", "total", "collected", "walkin", "agent"] as const;
+  const money = ["roomCharges", "discount", "gst", "extras", "total", "collected"] as const;
+  const due = Math.max(0, r.totals.total - r.totals.collected);
 
   return (
     <>
-      <PageHeader title="Revenue & Agent Outstanding" description="Bookings by arrival date (cancelled excluded), and every agent's balance" />
+      <PageHeader title="Sales Report" description="Sales of each hotel for the dates you pick (by check-in date, cancelled bookings left out), and how much each agent still owes." />
 
       <form className="w-full bg-white border border-line flex items-stretch h-9 text-xs">
         <label className="flex items-center gap-2 px-3 border-r border-line text-slate-500">
@@ -34,6 +35,13 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
         <button className="px-4 font-bold text-brand hover:bg-brand-light">Apply</button>
       </form>
 
+      {/* Three numbers, plain words */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Sum label="Total sales" value={formatINR(r.totals.total)} sub={`${formatNumber(r.totals.bookings)} bookings · ${formatNumber(r.totals.roomNights)} room nights`} />
+        <Sum label="Money received" value={formatINR(r.totals.collected)} sub="Payments taken for these bookings" tone="text-emerald-700" />
+        <Sum label="Still to collect" value={formatINR(due)} sub="Sales minus money received" tone={due > 0 ? "text-rose-600" : "text-slate-900"} />
+      </div>
+
       <div className="bg-white border border-line overflow-x-auto">
         <table className="w-full text-xs border-collapse">
           <thead>
@@ -41,14 +49,12 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
               <th className={`${th} text-left`}>Hotel</th>
               <th className={`${th} text-right`}>Bookings</th>
               <th className={`${th} text-right`}>Room Nights</th>
-              <th className={`${th} text-right`}>Room Charges</th>
+              <th className={`${th} text-right`}>Room Price</th>
               <th className={`${th} text-right`}>Discount</th>
               <th className={`${th} text-right`}>GST</th>
               <th className={`${th} text-right`}>Extras</th>
-              <th className={`${th} text-right`}>Total</th>
-              <th className={`${th} text-right`}>Collected</th>
-              <th className={`${th} text-right`}>Walk-in</th>
-              <th className={`${th} text-right`}>Agent</th>
+              <th className={`${th} text-right`}>Total Sales</th>
+              <th className={`${th} text-right`}>Received</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -66,7 +72,7 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
             ))}
             {r.rows.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-6 py-10 text-center text-slate-400">
+                <td colSpan={9} className="px-6 py-10 text-center text-slate-400">
                   No bookings in this period
                 </td>
               </tr>
@@ -91,7 +97,7 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
 
       {r.agents.length > 0 && (
         <div className="bg-white border border-line overflow-x-auto">
-          <div className="px-3 py-2 border-b border-line text-[11px] font-bold text-brand uppercase tracking-wider">Agent Outstanding (all time)</div>
+          <div className="px-3 py-2 border-b border-line text-[11px] font-bold text-brand uppercase tracking-wider">Agents: money they still owe (all time)</div>
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="border-b border-line bg-head text-[11px] font-bold text-slate-600 uppercase tracking-wider">
@@ -100,7 +106,7 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
                 <th className={`${th} text-right`}>Bookings</th>
                 <th className={`${th} text-right`}>Billed</th>
                 <th className={`${th} text-right`}>Received</th>
-                <th className={`${th} text-right`}>Outstanding</th>
+                <th className={`${th} text-right`}>Still owes</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -129,5 +135,15 @@ export async function ReportPage({ searchParams }: { searchParams: SearchParams 
         </div>
       )}
     </>
+  );
+}
+
+function Sum({ label, value, sub, tone = "text-slate-900" }: { label: string; value: string; sub: string; tone?: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+      <p className="text-sm font-semibold text-slate-600">{label}</p>
+      <p className={`mt-1 text-3xl font-black tabular-nums ${tone}`}>{value}</p>
+      <p className="text-xs text-slate-500">{sub}</p>
+    </div>
   );
 }

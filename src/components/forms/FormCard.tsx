@@ -52,7 +52,7 @@ export function FormCard({ title, description, badge, icon, backHref, submitLabe
       {aside ? (
         <div className="px-4 sm:px-6 py-5 xl:grid xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-6 space-y-5 xl:space-y-0">
           <div className="space-y-5 min-w-0">{children}</div>
-          <div className="xl:sticky xl:top-[104px] self-start">{aside}</div>
+          <div className="xl:sticky xl:top-[144px] self-start">{aside}</div>
         </div>
       ) : (
         <div className="px-4 sm:px-6 py-5 space-y-5">{children}</div>

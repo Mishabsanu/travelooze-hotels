@@ -179,7 +179,7 @@ function DayPanel({ hotel, day, rooms, today, canBook, canAgent, summary }: { ho
     `${agent ? "/dashboard/front-office/bookings/new-agent" : `${BOOKING_BASE}/new`}?${new URLSearchParams({ hotel, room: roomId, checkIn: day, checkOut: addDay(day, 1) })}`;
 
   return (
-    <div className="bg-white border border-line self-start xl:sticky xl:top-[104px]">
+    <div className="bg-white border border-line self-start xl:sticky xl:top-[144px]">
       <div className="px-3 py-2.5 border-b border-line">
         <p className="text-sm font-bold text-slate-900">{formatDay(day)}</p>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">

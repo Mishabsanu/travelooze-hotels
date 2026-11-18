@@ -27,6 +27,8 @@ export interface Overview {
   today: string;
   hotels: HotelTonight[];
   totals: { rooms: number; occupied: number; arrivals: number; departures: number; inHouse: number; overdueArrivals: number };
+  /** Money still owed by guests in the house or already gone (room + extras − paid) */
+  pending: { amount: number; bookings: number };
   month?: { revenue: number; bookings: number; collected: number };
   agentDues?: { _id: string; name: string; due: number; creditLimit: number }[];
 }
@@ -38,7 +40,7 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
   const scope = hotelScope(user);
   const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
 
-  const [hotels, rooms, occupied, arrivals, departures, inHouse, overdueArrivals, month, agentDues] = await Promise.all([
+  const [hotels, rooms, occupied, arrivals, departures, inHouse, overdueArrivals, month, agentDues, pending] = await Promise.all([
     Hotel.find({ ...hotelIdFilter(user), status: "active" }).sort({ name: 1 }).select("name").lean(),
     Room.aggregate([{ $match: { ...scope, status: "active" } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
     RoomNight.aggregate([{ $match: { ...scope, date: today } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
@@ -49,6 +51,7 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
     // Revenue and agent dues in the same parallel batch (one wait instead of three)
     can(user, "report", "view") ? monthRevenue(scope, monthStart) : undefined,
     can(user, "agent", "view") ? topAgentDues(scope) : undefined,
+    pendingDues(scope),
   ]);
   const [rc, oc, ac, dc] = [rooms, occupied, arrivals, departures].map(countBy);
 
@@ -76,6 +79,7 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
 
   const overview: Overview = {
     month,
+    pending,
     agentDues,
     today: today.toISOString(),
     hotels: list,
@@ -83,6 +87,16 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
   };
 
   return overview;
+}
+
+async function pendingDues(scope: Record<string, unknown>): Promise<Overview["pending"]> {
+  const [m] = await Booking.aggregate<{ amount: number; bookings: number }>([
+    { $match: { ...scope, status: { $in: ["checked_in", "checked_out"] } } },
+    { $project: { due: { $subtract: [{ $add: ["$total", { $ifNull: ["$extrasTotal", 0] }] }, { $sum: "$payments.amount" }] } } },
+    { $match: { due: { $gt: 0.009 } } },
+    { $group: { _id: null, amount: { $sum: "$due" }, bookings: { $sum: 1 } } },
+  ]);
+  return { amount: Math.round((m?.amount ?? 0) * 100) / 100, bookings: m?.bookings ?? 0 };
 }
 
 async function monthRevenue(scope: Record<string, unknown>, monthStart: Date): Promise<Overview["month"]> {

@@ -28,7 +28,7 @@ export const NAV_MODULES: NavModule[] = [
     basePath: "/dashboard/overview",
     items: [
       { label: "Today", href: "/dashboard/overview" },
-      { label: "Analytics", href: "/dashboard/overview/analytics", permission: "report" },
+      { label: "Sales Charts", href: "/dashboard/overview/analytics", permission: "report" },
     ],
   },
   {
@@ -70,7 +70,7 @@ export const NAV_MODULES: NavModule[] = [
     basePath: "/dashboard/reports",
     items: [
       { label: "Daily Report", href: "/dashboard/reports/daily", permission: "report" },
-      { label: "Revenue & Agent Outstanding", href: "/dashboard/reports", permission: "report" },
+      { label: "Sales Report", href: "/dashboard/reports", permission: "report" },
       { label: "Agent Report", href: "/dashboard/reports/agents", permission: "report" },
     ],
   },

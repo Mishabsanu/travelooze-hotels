@@ -98,13 +98,13 @@ export function KpiRow({ a }: { a: Analytics }) {
   const prevpar = p.available ? p.roomRevenue / p.available : 0;
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3">
-      <Kpi label="Revenue (excl. GST)" value={formatINR(t.revenue)} now={t.revenue} before={p.revenue} hint={`Rooms ${compactINR(t.roomRevenue)} · extras ${compactINR(t.extras)}`} />
-      <Kpi label="Occupancy" value={`${occ.toFixed(1)}%`} now={occ} before={pocc} hint={`${t.nights} of ${t.available} room nights`} />
-      <Kpi label="ADR" value={formatINR(Math.round(adr))} now={adr} before={padr} hint="Average rate per sold room night" />
-      <Kpi label="RevPAR" value={formatINR(Math.round(revpar))} now={revpar} before={prevpar} hint="Room revenue per available room night" />
+      <Kpi label="Sales (without GST)" value={formatINR(t.revenue)} now={t.revenue} before={p.revenue} hint={`Rooms ${compactINR(t.roomRevenue)} · extras ${compactINR(t.extras)}`} />
+      <Kpi label="Rooms filled" value={`${occ.toFixed(1)}%`} now={occ} before={pocc} hint={`${t.nights} of ${t.available} room nights sold`} />
+      <Kpi label="Average room price" value={formatINR(Math.round(adr))} now={adr} before={padr} hint="Per room, per night (ADR)" />
+      <Kpi label="Earning per room" value={formatINR(Math.round(revpar))} now={revpar} before={prevpar} hint="Room sales ÷ all rooms, per night (RevPAR)" />
       <Kpi label="Room nights sold" value={t.nights.toLocaleString("en-IN")} now={t.nights} before={p.nights} />
       <Kpi label="Bookings made" value={t.bookings.toLocaleString("en-IN")} now={t.bookings} before={p.bookings} hint={t.cancelled ? `${t.cancelled} cancelled / no-show` : undefined} />
-      <Kpi label="Collected" value={formatINR(t.collected)} now={t.collected} before={p.collected} hint="Payments received" />
+      <Kpi label="Money received" value={formatINR(t.collected)} now={t.collected} before={p.collected} hint="Payments taken" />
       <Kpi label="Extras" value={formatINR(t.extras)} now={t.extras} before={p.extras} hint="Food, laundry, … excl. GST" />
     </div>
   );
