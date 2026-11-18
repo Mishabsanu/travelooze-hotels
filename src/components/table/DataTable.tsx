@@ -122,7 +122,8 @@ export function DataTable<T extends { _id: string }>({
                   })()}
                 </th>
               ))}
-              {rowActions && <th className="w-28 px-3 py-2 text-center">Actions</th>}
+              {/* Pinned to the right edge, so View / Edit / Delete stay visible on wide tables */}
+              {rowActions && <th className="sticky right-0 z-10 w-28 px-3 py-2 text-center bg-head border-l border-line shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.15)]">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-line bg-white text-slate-800">
@@ -152,7 +153,11 @@ export function DataTable<T extends { _id: string }>({
                       </td>
                     );
                   })}
-                  {rowActions && <td className="px-3 py-2 align-middle text-center whitespace-nowrap">{rowActions(row)}</td>}
+                  {rowActions && (
+                    <td className="sticky right-0 z-[1] px-3 py-2 align-middle text-center whitespace-nowrap bg-white border-l border-line shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.15)]">
+                      {rowActions(row)}
+                    </td>
+                  )}
                 </tr>
               ))
             )}

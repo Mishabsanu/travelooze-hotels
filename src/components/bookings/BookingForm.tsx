@@ -1,7 +1,7 @@
 "use client";
 
 import { Form, Formik } from "formik";
-import { CalendarCheck, CalendarPlus, ChevronDown, LogIn, MessageSquareText, Plus } from "lucide-react";
+import { CalendarCheck, CalendarPlus, LogIn, MessageSquareText, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -92,8 +92,6 @@ export function BookingForm(p: BookingFormProps) {
   const [pickRequest, setPickRequest] = useState(0);
   // Agents: the WhatsApp paste box is the fastest start, so it is open from the beginning
   const [showPaste, setShowPaste] = useState(isAgent);
-  // Walk-in: group rates (per head / package) and discount stay folded away until needed
-  const [moreOpen, setMoreOpen] = useState(isAgent);
   // "Save & Check In": after saving, open the booking with the check-in pop-up
   const checkInAfter = useRef(false);
   // Extra charges typed while booking: added to the booking's bill right after it is saved
@@ -159,7 +157,8 @@ export function BookingForm(p: BookingFormProps) {
     perHeadRate: 0,
     focPax: 0,
     packageAmount: 0,
-    withGst: true,
+    // New bookings start without GST (tick "With GST" when it applies)
+    withGst: false,
     checkIn: p.preset?.checkIn ?? p.today,
     checkOut: p.preset?.checkOut ?? (p.preset?.checkIn ? nextDay(p.preset.checkIn) : p.tomorrow),
     mealPlan: "CP",
@@ -310,8 +309,8 @@ export function BookingForm(p: BookingFormProps) {
           : priceRooms(priceLines, nights, discount, values.withGst !== false);
         const gross = price.roomCharges + price.extraBedCharges;
         const canCheckInNow = !split && !isAgent && p.canCheckIn && values.checkIn === p.today;
-        // Keep "More options" open while something in it is in use
-        const showMore = moreOpen || perHead || pkg || (values.discountPercent !== null && (values.discountPercent as unknown) !== "");
+        // Rate type and discount are always shown (no "More options" toggle)
+        const showMore = true;
         const n = (i: number) => (isAgent ? i : i + 1);
 
         return (
@@ -325,155 +324,16 @@ export function BookingForm(p: BookingFormProps) {
               submitLabel={canCheckInNow ? "Save Booking" : "Confirm Booking"}
               submitting={isSubmitting}
               aside={
-                <div className="space-y-2">
-                  <h2 className="text-xs font-bold text-brand uppercase tracking-wider">Summary</h2>
-                <div className="border border-line bg-white">
-                  <table className="w-full text-xs">
-                    <tbody className="divide-y divide-line">
-                      <SummaryRow k="Rooms × nights" v={split ? groups.map((g) => `${g.rooms.length} × ${g.nights}`).join(" + ") : `${values.rooms.length} × ${nights || 0}`} />
-                      {perHead && (
-                        <SummaryRow
-                          k="Per head × paying guests × nights"
-                          v={`${formatINR(Number(values.perHeadRate) || 0)} × ${Math.max(0, totalPax - (Number(values.focPax) || 0))} × ${nights || 0}${Number(values.focPax) ? ` (+${values.focPax} free)` : ""}`}
-                        />
-                      )}
-                      {pkg && <SummaryRow k={`Package for ${nights || 0} night${nights === 1 ? "" : "s"}, ${values.rooms.length} room${values.rooms.length === 1 ? "" : "s"}`} v={formatINR(Number(values.packageAmount) || 0)} />}
-                      <SummaryRow k={perHead || pkg ? "Package charges" : "Room charges"} v={formatINR(price.roomCharges)} />
-                      {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
-                      {price.discount > 0 && <SummaryRow k={`Discount (${round2(discount)}%)`} v={`− ${formatINR(price.discount)}`} />}
-                      <SummaryRow k={values.withGst === false ? "GST (not charged)" : "GST"} v={formatINR(price.gstAmount)} />
-                      {filledExtras.length > 0 && <SummaryRow k="Room total" v={formatINR(price.total)} />}
-                      {filledExtras.length > 0 && <SummaryRow k={`Extra charges (${filledExtras.length})`} v={formatINR(extrasTotal(filledExtras))} />}
-                      <tr className="bg-brand-light">
-                        <td className="px-3 py-2 font-bold text-brand uppercase tracking-wider text-[11px]">Total</td>
-                        <td className="px-3 py-2 text-right font-black text-base text-slate-900 tabular-nums">{formatINR(price.total + extrasTotal(filledExtras))}</td>
-                      </tr>
-                      {Number(values.advance) > 0 && <SummaryRow k="Balance after advance" v={formatINR(Math.max(0, price.total + extrasTotal(filledExtras) - Number(values.advance)))} />}
-                    </tbody>
-                  </table>
-                </div>
-                </div>
-              }
-              onSubmitClick={() => (checkInAfter.current = false)}
-              extraActions={
-                canCheckInNow && (
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => {
-                      checkInAfter.current = true;
-                      void submitForm();
-                    }}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-xs flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <LogIn className="w-4 h-4" />
-                    Save &amp; Check In
-                  </button>
-                )
-              }
-            >
-              {isAgent && (
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPaste((s) => !s)}
-                    className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-brand text-brand text-xs font-bold hover:bg-brand-light"
-                  >
-                    <MessageSquareText className="w-4 h-4" />
-                    {showPaste ? "Hide WhatsApp message" : "Paste WhatsApp Message"}
-                  </button>
-                  {showPaste && (
-                    <div className="mt-3 grid grid-cols-1">
-                      <AgentMessagePanel
-                        hotelOptions={p.hotelOptions}
-                        today={p.today}
-                        onPlan={(plan) => {
-                          setPerRoom(plan.perRoom);
-                          if (plan.rooms) setPickRequest(plan.rooms);
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {split && (
-                <SplitBanner
-                  groups={groups}
-                  label={(id) => {
-                    const t = typeOf.get(id);
-                    const number = t?.rooms.find((r) => r._id === id)?.number;
-                    return number ? `${number} · ${t?.name}` : "…";
-                  }}
-                  problem={splitProblem}
-                />
-              )}
-
-
-              {!isAgent && (
-                <FormSection title="1 · Guest">
-                  <GuestFields />
-                </FormSection>
-              )}
-
-              <FormSection title={`${n(1)} · Stay & Pax`}>
-                {!split && <SelectField name="hotel" label="Hotel" required placeholder="Select hotel" options={p.hotelOptions} />}
-                {!split && <TextField
-                  name="checkIn"
-                  label="Check-in"
-                  type="date"
-                  required
-                  min={p.today}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    void setFieldValue("checkIn", v);
-                    if (v && v >= values.checkOut) void setFieldValue("checkOut", nextDay(v));
-                  }}
-                />}
-                {!split && <TextField name="checkOut" label="Check-out" type="date" required min={values.checkIn} hint={nights ? `${nights} night${nights > 1 ? "s" : ""}` : undefined} />}
-                <SelectField name="mealPlan" label="Meal Plan" required options={PLAN_OPTIONS} />
-                <TextField name="adults" label="Pax (Adults)" type="number" min={1} step="1" required hint={isAgent ? "Everyone, incl. free guests" : undefined} />
-                <TextField name="children" label="Children" type="number" min={0} step="1" />
-                {isAgent && (
-                  <>
-                    <SearchSelectField name="agent" label="Agent" required placeholder="Select agent" options={p.agentOptions} searchPlaceholder="Search agents..." />
-                    <TextField name="agentRef" label="Agent Ref No." maxLength={60} placeholder="e.g. B2295 HN" />
-                  </>
-                )}
-              </FormSection>
-
-              <FormSection
-                title={`${n(2)} · Rooms`}
-                description={isAgent ? "Pick rooms for the pax in one click, or tap rooms yourself. Then type the guest name and phone in the table." : "Pick rooms for the pax in one click, or tap rooms yourself."}
-              >
-                {!split && <RoomPicker
-                  onTypes={(t, n) => {
-                    setTypes(t);
-                    setNights(n);
-                  }}
-                  perRoom={perRoom}
-                  setPerRoom={setPerRoom}
-                  pickRequest={pickRequest}
-                  onPickDone={() => setPickRequest(0)}
-                />}
-                <OccupancyEditor types={types} phoneRequired={!isAgent} idFiles={idFiles} setIdFiles={p.canUploadId ? setIdFiles : undefined} mainGuestAbove={!isAgent} />
-              </FormSection>
-
-              <FormSection title={`${n(3)} · Price & Payment`}>
-                {!isAgent && (
-                  <button
-                    type="button"
-                    onClick={() => setMoreOpen((o) => !o)}
-                    disabled={showMore && !moreOpen}
-                    className="col-span-full justify-self-start inline-flex items-center gap-1 text-xs font-bold text-brand hover:underline disabled:no-underline disabled:opacity-60"
-                  >
-                    <ChevronDown className={`w-4 h-4 transition-transform ${showMore ? "rotate-180" : ""}`} />
-                    {showMore ? "Fewer options" : "More options: group / package rate" + (canAdjust ? ", discount" : "")}
-                  </button>
-                )}
+                <div className="rounded-xl border border-slate-200 bg-white">
+                  <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100">
+                    <span className="w-6 h-6 shrink-0 rounded-full bg-brand text-white text-xs font-bold flex items-center justify-center">{n(3)}</span>
+                    <h2 className="text-sm font-bold text-slate-800">Price &amp; Payment</h2>
+                  </div>
+                  <div className="p-4 space-y-4">
+                  <div className="grid grid-cols-1 gap-3">
                 {showMore && (
                   <FormField label="Rate" className="col-span-full">
-                    <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5" role="radiogroup" aria-label="Rate basis">
+                    <div className="flex w-full rounded-lg border border-slate-300 bg-white p-0.5" role="radiogroup" aria-label="Rate basis">
                       {[
                         { v: "room", l: "Room rate" },
                         { v: "per_head", l: "Per head (group)" },
@@ -486,7 +346,7 @@ export function BookingForm(p: BookingFormProps) {
                           role="radio"
                           aria-checked={values.rateType === o.v}
                           onClick={() => setFieldValue("rateType", o.v)}
-                          className={`h-8 px-4 rounded-md text-xs font-bold ${values.rateType === o.v ? "bg-brand text-white" : "text-slate-600 hover:text-brand"}`}
+                          className={`h-8 flex-1 px-2 rounded-md text-xs font-bold ${values.rateType === o.v ? "bg-brand text-white" : "text-slate-600 hover:text-brand"}`}
                         >
                           {o.l}
                         </button>
@@ -501,7 +361,7 @@ export function BookingForm(p: BookingFormProps) {
                   </>
                 )}
                 {(
-                  <label className="col-span-full inline-flex items-center gap-2 justify-self-start rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                  <label className="col-span-full flex w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
                     <input type="checkbox" name="withGst" checked={values.withGst !== false} onChange={(e) => setFieldValue("withGst", e.target.checked)} className="w-4 h-4 accent-brand" />
                     With GST
                     <span className="font-normal text-slate-400">{values.withGst !== false ? "GST added on room charges" : "No GST on room charges"}</span>
@@ -555,24 +415,154 @@ export function BookingForm(p: BookingFormProps) {
                     )}
                   </>
                 )}
-
-                {/* Extra charges and notes stay folded away until needed */}
-                {(!(p.canPay && extras.length) || !(notesOpen || values.notes)) && (
-                  <div className="col-span-full flex flex-wrap gap-2">
-                    {p.canPay && !extras.length && (
+                  </div>
+                  {p.canPay &&
+                    (extras.length ? (
+                      <ExtraChargesEditor value={extras} onChange={setExtras} compact />
+                    ) : (
                       <button type="button" onClick={() => setExtras([newCharge()])} className={addLink}>
                         <Plus className="w-4 h-4" /> Extra charge
                       </button>
-                    )}
-                    {!(notesOpen || values.notes) && (
-                      <button type="button" onClick={() => setNotesOpen(true)} className={addLink}>
-                        <Plus className="w-4 h-4" /> Note
-                      </button>
-                    )}
+                    ))}
+                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider pt-1">Summary</h3>
+                <div className="border border-line bg-white">
+                  <table className="w-full text-xs">
+                    <tbody className="divide-y divide-line">
+                      <SummaryRow k="Rooms × nights" v={split ? groups.map((g) => `${g.rooms.length} × ${g.nights}`).join(" + ") : `${values.rooms.length} × ${nights || 0}`} />
+                      {perHead && (
+                        <SummaryRow
+                          k="Per head × paying guests × nights"
+                          v={`${formatINR(Number(values.perHeadRate) || 0)} × ${Math.max(0, totalPax - (Number(values.focPax) || 0))} × ${nights || 0}${Number(values.focPax) ? ` (+${values.focPax} free)` : ""}`}
+                        />
+                      )}
+                      {pkg && <SummaryRow k={`Package for ${nights || 0} night${nights === 1 ? "" : "s"}, ${values.rooms.length} room${values.rooms.length === 1 ? "" : "s"}`} v={formatINR(Number(values.packageAmount) || 0)} />}
+                      <SummaryRow k={perHead || pkg ? "Package charges" : "Room charges"} v={formatINR(price.roomCharges)} />
+                      {price.extraBedCharges > 0 && <SummaryRow k="Extra beds" v={formatINR(price.extraBedCharges)} />}
+                      {price.discount > 0 && <SummaryRow k={`Discount (${round2(discount)}%)`} v={`− ${formatINR(price.discount)}`} />}
+                      <SummaryRow k={values.withGst === false ? "GST (not charged)" : "GST"} v={formatINR(price.gstAmount)} />
+                      {filledExtras.length > 0 && <SummaryRow k="Room total" v={formatINR(price.total)} />}
+                      {filledExtras.length > 0 && <SummaryRow k={`Extra charges (${filledExtras.length})`} v={formatINR(extrasTotal(filledExtras))} />}
+                      <tr className="bg-brand-light">
+                        <td className="px-3 py-2 font-bold text-brand uppercase tracking-wider text-[11px]">Total</td>
+                        <td className="px-3 py-2 text-right font-black text-base text-slate-900 tabular-nums">{formatINR(price.total + extrasTotal(filledExtras))}</td>
+                      </tr>
+                      {Number(values.advance) > 0 && <SummaryRow k="Balance after advance" v={formatINR(Math.max(0, price.total + extrasTotal(filledExtras) - Number(values.advance)))} />}
+                    </tbody>
+                  </table>
+                </div>
                   </div>
+                </div>
+              }
+              onSubmitClick={() => (checkInAfter.current = false)}
+              extraActions={
+                canCheckInNow && (
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      checkInAfter.current = true;
+                      void submitForm();
+                    }}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Save &amp; Check In
+                  </button>
+                )
+              }
+            >
+              {isAgent && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowPaste((s) => !s)}
+                    className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-brand text-brand text-xs font-bold hover:bg-brand-light"
+                  >
+                    <MessageSquareText className="w-4 h-4" />
+                    {showPaste ? "Hide WhatsApp message" : "Paste WhatsApp Message"}
+                  </button>
+                  {showPaste && (
+                    <div className="mt-3 grid grid-cols-1">
+                      <AgentMessagePanel
+                        hotelOptions={p.hotelOptions}
+                        today={p.today}
+                        onPlan={(plan) => {
+                          setPerRoom(plan.perRoom);
+                          if (plan.rooms) setPickRequest(plan.rooms);
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {split && (
+                <SplitBanner
+                  groups={groups}
+                  label={(id) => {
+                    const t = typeOf.get(id);
+                    const number = t?.rooms.find((r) => r._id === id)?.number;
+                    return number ? `${number} · ${t?.name}` : "…";
+                  }}
+                  problem={splitProblem}
+                />
+              )}
+
+
+              {!isAgent && (
+                <FormSection title="1 · Guest" cols={2}>
+                  <GuestFields />
+                </FormSection>
+              )}
+
+              <FormSection title={`${n(1)} · Stay & Pax`} cols={isAgent ? 4 : 3}>
+                {!split && <SelectField name="hotel" label="Hotel" required placeholder="Select hotel" options={p.hotelOptions} />}
+                {!split && <TextField
+                  name="checkIn"
+                  label="Check-in"
+                  type="date"
+                  required
+                  min={p.today}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    void setFieldValue("checkIn", v);
+                    if (v && v >= values.checkOut) void setFieldValue("checkOut", nextDay(v));
+                  }}
+                />}
+                {!split && <TextField name="checkOut" label="Check-out" type="date" required min={values.checkIn} hint={nights ? `${nights} night${nights > 1 ? "s" : ""}` : undefined} />}
+                <SelectField name="mealPlan" label="Meal Plan" required options={PLAN_OPTIONS} />
+                <TextField name="adults" label="Pax (Adults)" type="number" min={1} step="1" required hint={isAgent ? "Everyone, incl. free guests" : undefined} />
+                <TextField name="children" label="Children" type="number" min={0} step="1" />
+                {isAgent && (
+                  <>
+                    <SearchSelectField name="agent" label="Agent" required placeholder="Select agent" options={p.agentOptions} searchPlaceholder="Search agents..." />
+                    <TextField name="agentRef" label="Agent Ref No." maxLength={60} placeholder="e.g. B2295 HN" />
+                  </>
                 )}
-                {p.canPay && extras.length > 0 && <ExtraChargesEditor value={extras} onChange={setExtras} />}
-                {(notesOpen || Boolean(values.notes)) && (
+              </FormSection>
+
+              <FormSection
+                title={`${n(2)} · Rooms`}
+                description={isAgent ? "Tap the rooms, then type each room's guest in the table." : "Tap the rooms to book."}
+              >
+                {!split && <RoomPicker
+                  onTypes={(t, n) => {
+                    setTypes(t);
+                    setNights(n);
+                  }}
+                  perRoom={perRoom}
+                  pickRequest={pickRequest}
+                  onPickDone={() => setPickRequest(0)}
+                />}
+                <OccupancyEditor types={types} phoneRequired={!isAgent} idFiles={idFiles} setIdFiles={p.canUploadId ? setIdFiles : undefined} mainGuestAbove={!isAgent} />
+                {/* Notes: folded away until needed */}
+                {!(notesOpen || values.notes) ? (
+                  <div className="col-span-full">
+                    <button type="button" onClick={() => setNotesOpen(true)} className={addLink}>
+                      <Plus className="w-4 h-4" /> Note
+                    </button>
+                  </div>
+                ) : (
                   <TextAreaField
                     name="notes"
                     label="Notes"
@@ -583,8 +573,8 @@ export function BookingForm(p: BookingFormProps) {
                     className="col-span-full"
                   />
                 )}
-
               </FormSection>
+
             </FormCard>
           </Form>
         );

@@ -31,34 +31,48 @@ export async function OverviewPage() {
 
   return (
     <>
-      {/* Greeting + the two main buttons */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">
-            {hello}, {user.name.split(" ")[0]}
-          </h1>
-          <p className="text-sm text-slate-500">{formatDay(todayIST())}</p>
+      {/* Welcome banner: greeting, date, booking buttons and shortcuts */}
+      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand via-brand to-brand-dark px-5 py-5 sm:px-7 sm:py-6 text-white shadow-sm">
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10" />
+        <div aria-hidden className="pointer-events-none absolute right-24 -bottom-24 h-48 w-48 rounded-full bg-white/5" />
+        <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm text-white/70">{formatDay(todayIST())}</p>
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight">
+              {hello}, {user.name.split(" ")[0]} 👋
+            </h1>
+            <p className="mt-1 text-sm text-white/80">Here is your hotel today.</p>
+          </div>
+          {(canWalkin || canAgent) && (
+            <div className="flex flex-wrap gap-2">
+              {canWalkin && (
+                <Link href={`${BOOKINGS}/new`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-white text-brand hover:bg-brand-light text-sm font-bold shadow-sm">
+                  <Plus className="w-5 h-5" /> New Walk-in
+                </Link>
+              )}
+              {canAgent && (
+                <Link href={`${BOOKINGS}/new-agent`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-white/40 text-white hover:bg-white/10 text-sm font-bold">
+                  <Plus className="w-5 h-5" /> Agent Booking
+                </Link>
+              )}
+            </div>
+          )}
         </div>
-        {(canWalkin || canAgent) && (
-          <div className="flex flex-wrap gap-2">
-            {canWalkin && (
-              <Link href={`${BOOKINGS}/new`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl bg-brand hover:bg-brand-dark text-white text-sm font-bold shadow-sm">
-                <Plus className="w-5 h-5" /> New Walk-in
-              </Link>
-            )}
-            {canAgent && (
-              <Link href={`${BOOKINGS}/new-agent`} className="inline-flex items-center gap-2 h-11 px-5 rounded-xl border border-brand-border bg-white text-brand hover:bg-brand-light text-sm font-bold">
-                <Plus className="w-5 h-5" /> Agent Booking
-              </Link>
-            )}
+        {(bookings || reports) && (
+          <div className="relative mt-4 flex flex-wrap gap-2 border-t border-white/15 pt-4 text-xs font-semibold">
+            {bookings && <Shortcut href="/dashboard/overview/rooms" icon={<BedDouble className="w-4 h-4" />} label="Room report" />}
+            {bookings && <Shortcut href="/dashboard/front-office/availability" icon={<CalendarClock className="w-4 h-4" />} label="Booking grid" />}
+            {reports && <Shortcut href="/dashboard/reports/daily" icon={<IndianRupee className="w-4 h-4" />} label="Today's money" />}
+            {reports && <Shortcut href="/dashboard/overview/analytics" icon={<BarChart3 className="w-4 h-4" />} label="Sales charts" />}
           </div>
         )}
-      </div>
+      </section>
 
       <Suspense fallback={<NumbersSkeleton />}>
         <HomeNumbers user={user} bookings={bookings} reports={reports} />
       </Suspense>
 
+      {bookings && <GroupTitle>Guests today</GroupTitle>}
       {bookings && (
         <Suspense fallback={<DeskSkeleton />}>
           <HomeDesk user={user} />
@@ -80,18 +94,22 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
   return (
     <>
       {/* Rooms and guests today */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <GroupTitle>Rooms &amp; guests</GroupTitle>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 !mt-2">
         <Big
           icon={<BedDouble className="w-5 h-5" />}
           tone="bg-brand-light text-brand"
           label="Rooms free tonight"
           value={`${free}`}
           sub={`${o.totals.occupied} of ${o.totals.rooms} rooms are taken`}
+          bar={{ pct: o.totals.rooms ? (o.totals.occupied / o.totals.rooms) * 100 : 0, label: `${o.totals.rooms ? Math.round((o.totals.occupied / o.totals.rooms) * 100) : 0}% full tonight` }}
+          accent="bg-brand"
           href={bookings ? "/dashboard/front-office/availability" : undefined}
         />
         <Big
           icon={<LogIn className="w-5 h-5" />}
           tone="bg-sky-50 text-sky-700"
+          accent="bg-sky-500"
           label="Coming today"
           value={`${o.totals.arrivals}`}
           sub={o.totals.arrivals ? `${o.totals.arrivalsDone} checked in · ${o.totals.arrivals - o.totals.arrivalsDone} still to come` : "no arrivals today"}
@@ -100,6 +118,7 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
         <Big
           icon={<LogOut className="w-5 h-5" />}
           tone="bg-amber-50 text-amber-700"
+          accent="bg-amber-500"
           label="Leaving today"
           value={`${o.totals.departures}`}
           sub={o.totals.departures ? `${o.totals.departuresDone} checked out · ${o.totals.departures - o.totals.departuresDone} still here` : "no departures today"}
@@ -108,31 +127,35 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
       </div>
 
       {/* Money today */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <GroupTitle>Money</GroupTitle>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 !mt-2">
         <Big
           icon={<Wallet className="w-5 h-5" />}
           tone="bg-emerald-50 text-emerald-700"
+          accent="bg-emerald-500"
           label="Received today"
-          value={formatINR(o.received.amount)}
-          sub={o.received.count ? (Object.keys(PAYMENT_MODES) as PaymentMode[]).filter((m) => o.received.byMode[m] > 0).map((m) => `${PAYMENT_MODES[m]} ${formatINR(o.received.byMode[m])}`).join(" · ") : "No payment yet today"}
+          value={rupees(o.received.amount)}
+          sub={o.received.count ? (Object.keys(PAYMENT_MODES) as PaymentMode[]).filter((m) => o.received.byMode[m] > 0).map((m) => `${PAYMENT_MODES[m]} ${rupees(o.received.byMode[m])}`).join(" · ") : "No payment yet today"}
           good={o.received.amount > 0}
           href={reports ? "/dashboard/reports/daily" : undefined}
         />
         <Big
           icon={<HandCoins className="w-5 h-5" />}
-          tone="bg-amber-50 text-amber-700"
+          tone="bg-orange-50 text-orange-600"
+          accent="bg-orange-500"
           label="To collect today"
-          value={formatINR(o.collectToday.amount)}
-          sub={o.collectToday.amount ? `Leaving ${formatINR(o.collectToday.leaving)} · Arriving ${formatINR(o.collectToday.arriving)}` : "Nothing to collect from today's guests"}
+          value={rupees(o.collectToday.amount)}
+          sub={o.collectToday.amount ? `Leaving ${rupees(o.collectToday.leaving)} · Arriving ${rupees(o.collectToday.arriving)}` : "Nothing to collect from today's guests"}
           danger={o.collectToday.amount > 0}
           href={bookings ? "/dashboard/overview/rooms?show=collect" : undefined}
         />
         <Big
           icon={<IndianRupee className="w-5 h-5" />}
           tone="bg-rose-50 text-rose-700"
+          accent="bg-rose-500"
           label="All money to collect"
-          value={formatINR(o.pending.amount)}
-          sub={o.pending.bookings ? `Due now ${formatINR(o.pending.now)} · Upcoming ${formatINR(o.pending.upcoming)}` : "Everyone has paid"}
+          value={rupees(o.pending.amount)}
+          sub={o.pending.bookings ? `Due now ${rupees(o.pending.now)} · Upcoming ${rupees(o.pending.upcoming)}` : "Everyone has paid"}
           danger={o.pending.amount > 0}
           href={bookings ? "/dashboard/overview/rooms?show=collect" : undefined}
         />
@@ -144,35 +167,23 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
         </Link>
       )}
 
-      {/* Small extras */}
-      <div className="flex flex-wrap gap-3 text-sm">
-        <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 text-slate-700">
-          <UtensilsCrossed className="w-4 h-4 text-brand" />
-          <b>Meals today:</b> Breakfast {meals.b} · Lunch {meals.l} · Dinner {meals.d}
-        </span>
-        <span className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 ${o.roomsToClean ? "border-amber-200 bg-amber-50 text-amber-800" : "border-line bg-white text-slate-700"}`}>
-          <Sparkles className="w-4 h-4" />
-          <b>Rooms to clean:</b> {o.roomsToClean}
-        </span>
-        <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 text-slate-700">
-          <CalendarClock className="w-4 h-4 text-brand" />
-          <b>Arriving tomorrow:</b> {o.arrivalsTomorrow}
-        </span>
-        {bookings && (
-          <Link href="/dashboard/overview/rooms" className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold text-brand hover:bg-brand-light">
-            <BedDouble className="w-4 h-4" /> Room report: who pays what →
-          </Link>
-        )}
-        {reports && (
-          <Link href="/dashboard/overview/analytics" className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold text-brand hover:bg-brand-light">
-            <BarChart3 className="w-4 h-4" /> Sales charts →
-          </Link>
-        )}
-        {reports && (
-          <Link href="/dashboard/reports/daily" className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold text-brand hover:bg-brand-light">
-            <IndianRupee className="w-4 h-4" /> Today&apos;s money report →
-          </Link>
-        )}
+      {/* Good to know */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Info icon={<UtensilsCrossed className="w-4 h-4" />} tone="text-brand bg-brand-light" label="Meals today">
+          Breakfast <b>{meals.b}</b> · Lunch <b>{meals.l}</b> · Dinner <b>{meals.d}</b>
+        </Info>
+        <Info icon={<Sparkles className="w-4 h-4" />} tone={o.roomsToClean ? "text-amber-700 bg-amber-50" : "text-emerald-700 bg-emerald-50"} label="Rooms to clean" href={bookings ? "/dashboard/front-office/room-status" : undefined}>
+          {o.roomsToClean ? (
+            <>
+              <b>{o.roomsToClean}</b> {o.roomsToClean > 1 ? "rooms need" : "room needs"} cleaning
+            </>
+          ) : (
+            "All rooms are clean"
+          )}
+        </Info>
+        <Info icon={<CalendarClock className="w-4 h-4" />} tone="text-sky-700 bg-sky-50" label="Arriving tomorrow">
+          <b>{o.arrivalsTomorrow}</b> booking{o.arrivalsTomorrow === 1 ? "" : "s"}
+        </Info>
       </div>
     </>
   );
@@ -231,15 +242,75 @@ function DeskSkeleton() {
   );
 }
 
-function Big({ icon, tone, label, value, sub, href, danger, good }: { icon: ReactNode; tone: string; label: string; value: string; sub: string; href?: string; danger?: boolean; good?: boolean }) {
+/** ₹ without paise on Home (₹7,800 instead of ₹7,800.00); keeps paise when there are any */
+const rupees = (n: number) => (Number.isInteger(Math.round(n * 100) / 100) ? `₹${Math.round(n).toLocaleString("en-IN")}` : formatINR(n));
+
+function GroupTitle({ children }: { children: ReactNode }) {
+  return <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 pt-1">{children}</h2>;
+}
+
+function Shortcut({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
+  return (
+    <Link href={href} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-white hover:bg-white/20">
+      {icon} {label} →
+    </Link>
+  );
+}
+
+function Info({ icon, tone, label, href, children }: { icon: ReactNode; tone: string; label: string; href?: string; children: ReactNode }) {
   const body = (
-    <div className="h-full bg-white rounded-xl border border-slate-200 p-4 shadow-xs hover:shadow-md hover:border-slate-300 transition">
-      <div className="flex items-center gap-2">
-        <span className={`w-9 h-9 rounded-lg flex items-center justify-center ${tone}`}>{icon}</span>
-        <span className="text-sm font-semibold text-slate-600">{label}</span>
+    <div className="flex h-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-slate-300">
+      <span className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center ${tone}`}>{icon}</span>
+      <div className="min-w-0 text-sm">
+        <p className="text-xs font-semibold text-slate-500">{label}</p>
+        <p className="text-slate-800">{children}</p>
       </div>
-      <p className={`mt-2 text-3xl font-black tabular-nums ${danger ? "text-rose-600" : good ? "text-emerald-700" : "text-slate-900"}`}>{value}</p>
-      <p className="text-xs text-slate-500">{sub}</p>
+    </div>
+  );
+  return href ? <Link href={href}>{body}</Link> : body;
+}
+
+function Big({
+  icon,
+  tone,
+  accent = "bg-slate-300",
+  label,
+  value,
+  sub,
+  href,
+  danger,
+  good,
+  bar,
+}: {
+  icon: ReactNode;
+  tone: string;
+  accent?: string;
+  label: string;
+  value: string;
+  sub: string;
+  href?: string;
+  danger?: boolean;
+  good?: boolean;
+  bar?: { pct: number; label: string };
+}) {
+  const body = (
+    <div className="group relative h-full overflow-hidden bg-white rounded-xl border border-slate-200 p-4 pl-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition">
+      <span aria-hidden className={`absolute left-0 top-0 bottom-0 w-1 ${accent}`} />
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-sm font-semibold text-slate-600">{label}</span>
+        <span className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${tone}`}>{icon}</span>
+      </div>
+      <p className={`-mt-1 text-3xl font-black tabular-nums tracking-tight ${danger ? "text-rose-600" : good ? "text-emerald-700" : "text-slate-900"}`}>{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{sub}</p>
+      {bar && (
+        <div className="mt-3">
+          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+            <div className={`h-full rounded-full ${accent}`} style={{ width: `${Math.min(100, bar.pct)}%` }} />
+          </div>
+          <p className="mt-1 text-[11px] font-semibold text-slate-500">{bar.label}</p>
+        </div>
+      )}
+      {href && <span className="absolute right-4 bottom-3 text-xs font-bold text-brand opacity-0 group-hover:opacity-100 transition">Open →</span>}
     </div>
   );
   return href ? <Link href={href}>{body}</Link> : body;

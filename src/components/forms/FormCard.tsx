@@ -24,7 +24,7 @@ interface FormCardProps {
 /** Card shell for every create/edit form: header with back link, body, sticky footer actions. */
 export function FormCard({ title, description, badge, icon, backHref, submitLabel, submitting, extraActions, onSubmitClick, aside, children }: FormCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-clip">
       <div className="px-3 sm:px-4 py-3 border-b border-slate-200 flex items-center gap-3">
         <Link
           href={backHref}
@@ -50,12 +50,12 @@ export function FormCard({ title, description, badge, icon, backHref, submitLabe
       </div>
 
       {aside ? (
-        <div className="px-3 sm:px-4 py-4 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-5 space-y-5 xl:space-y-0">
-          <div className="space-y-5 min-w-0">{children}</div>
+        <div className="px-3 sm:px-4 py-4 bg-slate-50/50 xl:grid xl:grid-cols-[minmax(0,1fr)_400px] xl:gap-4 space-y-4 xl:space-y-0">
+          <div className="space-y-4 min-w-0">{children}</div>
           <div className="xl:sticky xl:top-[144px] self-start">{aside}</div>
         </div>
       ) : (
-        <div className="px-3 sm:px-4 py-4 space-y-5">{children}</div>
+        <div className="px-3 sm:px-4 py-4 bg-slate-50/50 space-y-4">{children}</div>
       )}
 
       <div className="sticky bottom-0 z-10 px-3 sm:px-4 py-3 bg-slate-50/95 backdrop-blur-xs border-t border-slate-200 flex items-center justify-between gap-3">
@@ -92,15 +92,26 @@ export function FormCard({ title, description, badge, icon, backHref, submitLabe
   );
 }
 
-/** Titled group of fields inside a FormCard. */
-export function FormSection({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+/** Titled group of fields inside a FormCard: a white card with a numbered title bar ("1 · Guest" → ① Guest). */
+const COLS = {
+  2: "grid-cols-1 sm:grid-cols-2",
+  3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+  4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+} as const;
+
+export function FormSection({ title, description, action, cols = 4, children }: { title: string; description?: string; action?: ReactNode; cols?: keyof typeof COLS; children: ReactNode }) {
+  const m = title.match(/^(\d+)\s*·\s*(.*)$/);
   return (
-    <section className="space-y-3">
-      <div className="pb-1.5 border-b border-slate-100">
-        <h2 className="text-xs font-bold text-brand uppercase tracking-wider">{title}</h2>
-        {description && <p className="text-[11px] text-slate-500 mt-0.5">{description}</p>}
+    <section className="rounded-xl border border-slate-200 bg-white">
+      <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-100">
+        {m && <span className="w-6 h-6 shrink-0 rounded-full bg-brand text-white text-xs font-bold flex items-center justify-center">{m[1]}</span>}
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold text-slate-800">{m ? m[2] : title}</h2>
+          {description && <p className="text-[11px] text-slate-500">{description}</p>}
+        </div>
+        {action && <div className="ml-auto">{action}</div>}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-x-4 gap-y-3">{children}</div>
+      <div className={`p-4 grid ${COLS[cols]} gap-x-4 gap-y-3`}>{children}</div>
     </section>
   );
 }

@@ -61,7 +61,7 @@ export function DiscountFields(p: {
           )}
         </div>
       </FormField>
-      <FormField label="Adjusted Price (₹, before GST)" hint={p.gross ? `List price ${formatINR(p.gross)} → ${round2(p.discount)}% off` : "Pick rooms first"}>
+      <FormField label="Price after discount (₹)" hint={p.gross ? `List ${formatINR(p.gross)}` : "Pick rooms first"}>
         <input
           type="number"
           min={0}

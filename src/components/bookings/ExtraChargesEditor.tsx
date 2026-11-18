@@ -26,7 +26,7 @@ export const extrasTotal = (list: ExtraCharge[]) => list.reduce((t, c) => t + (N
  * Extra charges taken while booking (pick-up, extra food, decoration…): one clean table.
  * They go on the booking's bill (folio) after it is saved, like the "Extra Charge" button on the booking page.
  */
-export function ExtraChargesEditor({ value, onChange }: { value: ExtraCharge[]; onChange: (v: ExtraCharge[]) => void }) {
+export function ExtraChargesEditor({ value, onChange, compact = false }: { value: ExtraCharge[]; onChange: (v: ExtraCharge[]) => void; compact?: boolean }) {
   const set = (key: number, patch: Partial<ExtraCharge>) => onChange(value.map((c) => (c.key === key ? { ...c, ...patch } : c)));
   const total = extrasTotal(value);
 
@@ -38,16 +38,16 @@ export function ExtraChargesEditor({ value, onChange }: { value: ExtraCharge[]; 
       </div>
 
       {/* Column names, once */}
-      <div className={`hidden sm:grid ${cols} gap-2 px-3 pt-2 text-[11px] font-semibold text-slate-500`}>
+      <div className={`${compact ? "hidden" : "hidden sm:grid"} ${cols} gap-2 px-3 pt-2 text-[11px] font-semibold text-slate-500`}>
         <span>Type</span>
         <span>Description</span>
         <span className="text-right">Amount</span>
         <span />
       </div>
 
-      <div className="divide-y divide-line sm:divide-y-0">
+      <div className={compact ? "divide-y divide-line" : "divide-y divide-line sm:divide-y-0"}>
         {value.map((c, i) => (
-          <div key={c.key} className={`grid grid-cols-[1fr_36px] ${cols} gap-2 px-3 py-2 items-center`}>
+          <div key={c.key} className={compact ? "grid grid-cols-[minmax(0,1fr)_112px_32px] gap-2 px-3 py-2 items-center" : `grid grid-cols-[1fr_36px] ${cols} gap-2 px-3 py-2 items-center`}>
             <select aria-label="Charge type" className={`${field} col-span-1`} value={c.category} onChange={(e) => set(c.key, { category: e.target.value as ChargeCategory })}>
               {CATEGORY_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -60,11 +60,11 @@ export function ExtraChargesEditor({ value, onChange }: { value: ExtraCharge[]; 
               placeholder="e.g. Airport pick-up"
               maxLength={120}
               autoFocus={i === value.length - 1 && !c.description && c.amount === ""}
-              className={`${field} col-span-2 sm:col-span-1 order-3 sm:order-none`}
+              className={compact ? `${field} col-span-3 order-4` : `${field} col-span-2 sm:col-span-1 order-3 sm:order-none`}
               value={c.description}
               onChange={(e) => set(c.key, { description: e.target.value })}
             />
-            <div className="relative col-span-2 sm:col-span-1 order-4 sm:order-none">
+            <div className={compact ? "relative order-2" : "relative col-span-2 sm:col-span-1 order-4 sm:order-none"}>
               <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">₹</span>
               <input
                 aria-label="Amount"
@@ -80,7 +80,7 @@ export function ExtraChargesEditor({ value, onChange }: { value: ExtraCharge[]; 
             <button
               type="button"
               onClick={() => onChange(value.filter((x) => x.key !== c.key))}
-              className="order-2 sm:order-none h-9 w-9 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+              className={`${compact ? "order-3 h-9 w-8" : "order-2 sm:order-none h-9 w-9"} inline-flex items-center justify-center rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50`}
               aria-label="Remove charge"
               title="Remove"
             >

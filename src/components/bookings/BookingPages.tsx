@@ -185,6 +185,8 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
   const sp = await searchParams;
   const canSeeIds = can(user, "guest_id", "view");
   const discountRatio = b.roomCharges ? b.discount / b.roomCharges : 0;
+  // Agent-billed: the agent owes the room, the guest owes the extras
+  const agentDue = b.billTo === "agent" ? Math.max(0, Math.round((b.balance - b.guestDue) * 100) / 100) : 0;
   const billGroups = Object.values(
     b.rooms.reduce<Record<string, { key: string; numbers: string[]; type: string; adults: number; children: number; rate: number; extraBeds: number; extraBedRate: number }>>((m, r) => {
       const key = [r.roomTypeName, r.ratePerNight, r.adults, r.children, r.extraBeds, r.extraBedRate].join("|");
@@ -372,7 +374,7 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                       </table>
                     </div>
 
-                    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
                       <div className="min-w-0 space-y-4">
                         <FolioList booking={b} />
                         <section className="space-y-2">
@@ -404,19 +406,31 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                         </section>
                       </div>
 
-                      {/* Totals */}
-                      <dl className="space-y-1 rounded-lg border border-line bg-slate-50/60 p-3 text-xs">
-                        <Total label="Room charges" value={formatINR(b.roomCharges)} />
-                        {b.extraBedCharges > 0 && <Total label="Extra beds" value={formatINR(b.extraBedCharges)} />}
-                        {b.discount > 0 && <Total label="Discount" value={`− ${formatINR(b.discount)}`} />}
-                        <Total label={b.noGst ? "GST (not charged)" : "GST"} value={formatINR(b.gstAmount)} />
-                        <Total label="Accommodation" value={formatINR(b.total)} strong line />
-                        {b.extrasTotal > 0 && <Total label="Extra charges" value={formatINR(b.extrasTotal)} />}
-                        {b.extrasTotal > 0 && <Total label="Grand total" value={formatINR(b.grandTotal)} strong />}
-                        <Total label="Paid" value={formatINR(b.paid)} />
-                        <Total label="Balance due" value={formatINR(b.balance)} strong line tone={b.balance > 0 ? "text-rose-600" : "text-emerald-700"} />
-                        {b.billTo === "agent" && <Total label="Guest pays (extras)" value={formatINR(b.guestDue)} tone={b.guestDue > 0 ? "text-rose-600" : "text-emerald-700"} />}
-                      </dl>
+                      {/* Bill summary: what it costs, what is paid, and who still has to pay */}
+                      <div className="rounded-xl border border-slate-200 bg-white text-xs shadow-xs">
+                        <p className="border-b border-slate-100 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Bill summary</p>
+                        <dl className="space-y-1.5 px-3 py-3">
+                          <Total label={`Rooms (${b.rooms.length} × ${b.nights} night${b.nights === 1 ? "" : "s"})`} value={formatINR(b.roomCharges)} />
+                          {b.extraBedCharges > 0 && <Total label="Extra beds" value={formatINR(b.extraBedCharges)} />}
+                          {b.discount > 0 && <Total label="Discount" value={`− ${formatINR(b.discount)}`} tone="text-emerald-700" />}
+                          <Total label={b.noGst ? "GST (not charged)" : "GST"} value={formatINR(b.gstAmount)} />
+                          <Total label="Room total" value={formatINR(b.total)} strong line />
+                          {b.extrasTotal > 0 && <Total label="Extra charges" value={`+ ${formatINR(b.extrasTotal)}`} />}
+                          {b.extrasTotal > 0 && <Total label="Grand total" value={formatINR(b.grandTotal)} strong line />}
+                          <Total label="Paid" value={b.paid ? `− ${formatINR(b.paid)}` : formatINR(0)} tone="text-emerald-700" />
+                        </dl>
+                        <div className={`flex items-baseline justify-between border-t border-slate-100 px-3 py-2.5 ${b.balance > 0 ? "bg-rose-50" : "bg-emerald-50"}`}>
+                          <span className="font-bold text-slate-800">{b.balance > 0 ? "Balance to collect" : "Fully paid"}</span>
+                          <span className={`text-base font-black tabular-nums ${b.balance > 0 ? "text-rose-600" : "text-emerald-700"}`}>{formatINR(Math.max(0, b.balance))}</span>
+                        </div>
+                        {b.balance > 0 && (
+                          <div className="space-y-1.5 border-t border-slate-100 px-3 py-2.5">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Who pays</p>
+                            {b.billTo === "agent" && agentDue > 0 && <Total label={`Agent · ${b.agent?.name ?? "—"}`} value={formatINR(agentDue)} tone="text-amber-700" />}
+                            {b.guestDue > 0 && <Total label={b.billTo === "agent" ? "Guest (extra charges)" : `Guest · ${b.guest.name || "—"}`} value={formatINR(b.guestDue)} tone="text-rose-600" />}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </>
                 ),
@@ -446,9 +460,21 @@ export async function BookingDetailPage({ params, searchParams }: { params: IdPa
                 <dd className="font-semibold tabular-nums text-slate-700">{formatINR(b.paid)}</dd>
               </div>
               <div className="flex justify-between border-t border-slate-100 pt-1.5">
-                <dt className="font-bold text-slate-700">Balance</dt>
-                <dd className={`font-black tabular-nums ${b.balance > 0 ? "text-rose-600" : "text-emerald-700"}`}>{formatINR(b.balance)}</dd>
+                <dt className="font-bold text-slate-700">{b.balance > 0 ? "Balance to collect" : "Fully paid"}</dt>
+                <dd className={`font-black tabular-nums ${b.balance > 0 ? "text-rose-600" : "text-emerald-700"}`}>{formatINR(Math.max(0, b.balance))}</dd>
               </div>
+              {b.billTo === "agent" && b.balance > 0 && (
+                <>
+                  <div className="flex justify-between pl-2 text-[11px]">
+                    <dt className="text-slate-500">from agent</dt>
+                    <dd className="font-semibold tabular-nums text-amber-700">{formatINR(agentDue)}</dd>
+                  </div>
+                  <div className="flex justify-between pl-2 text-[11px]">
+                    <dt className="text-slate-500">from guest (extras)</dt>
+                    <dd className="font-semibold tabular-nums text-rose-600">{formatINR(b.guestDue)}</dd>
+                  </div>
+                </>
+              )}
             </dl>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">

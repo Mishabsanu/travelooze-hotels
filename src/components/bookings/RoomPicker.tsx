@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormikContext } from "formik";
-import { AlertCircle, BedDouble, BedSingle, Check, Loader2, User, Users, Wand2 } from "lucide-react";
+import { AlertCircle, BedDouble, BedSingle, Check, Loader2, User } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import type { MealPlan } from "@/lib/constants";
@@ -11,15 +11,6 @@ import type { BookingInput } from "@/lib/validation/booking.schema";
 import { ApiError } from "@/services/apiClient";
 import { bookingApi } from "@/services/bookingApi";
 
-const SHARING = [
-  { n: 1, label: "Single" },
-  { n: 2, label: "Double" },
-  { n: 3, label: "Triple" },
-  { n: 4, label: "Quad" },
-  { n: 5, label: "5" },
-  { n: 6, label: "6" },
-];
-
 /**
  * Loads free rooms whenever hotel / dates change and lets the user tick rooms.
  * Reports the loaded types upward so the summary can price the selection.
@@ -27,14 +18,12 @@ const SHARING = [
 export function RoomPicker({
   onTypes,
   perRoom,
-  setPerRoom,
   pickRequest,
   onPickDone,
 }: {
   onTypes: (types: AvailabilityType[], nights: number) => void;
   /** Guests per room (2 double, 3 triple, 4 quad) used to work out how many rooms the pax needs */
   perRoom: number;
-  setPerRoom: (n: number) => void;
   /** Rooms to tick automatically once the free rooms are loaded (from a pasted agent message) */
   pickRequest: number;
   onPickDone: () => void;
@@ -79,8 +68,6 @@ export function RoomPicker({
     else next.add(id);
     void setFieldValue("rooms", [...next]);
   };
-  const pax = Math.max(0, Math.floor(Number(values.adults) || 0)) + Math.max(0, Math.floor(Number(values.children) || 0));
-  const needed = pax > 0 ? Math.ceil(pax / Math.max(1, perRoom)) : 0;
   const totalFree = types.reduce((n, t) => n + t.rooms.length, 0);
   /** Tick the first N free rooms, rooms that can hold the sharing (with extra beds) first */
   const autoPick = (want: number, list: AvailabilityType[] = types) => {
@@ -115,79 +102,13 @@ export function RoomPicker({
       {!hotel && <p className="text-xs text-slate-500">Select a hotel to see free rooms.</p>}
 
       {types.length > 0 && (
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {/* 1. Guests */}
-          <div className="flex flex-col rounded-lg border border-slate-200 bg-white p-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Guests</span>
-            <div className="mt-auto flex items-end gap-2 pt-2">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-light text-brand">
-                <Users className="h-4.5 w-4.5" />
-              </span>
-              <span className="text-2xl font-black leading-none tabular-nums text-slate-900">{pax || 0}</span>
-              <span className="pb-0.5 text-[11px] font-semibold text-slate-500">pax</span>
-            </div>
-          </div>
-
-          {/* 2. Sharing */}
-          <div className="flex flex-col rounded-lg border border-slate-200 bg-white p-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Guests per room</span>
-            <div className="mt-2 grid grid-cols-3 gap-1" role="radiogroup" aria-label="Guests per room">
-              {SHARING.map((o) => (
-                <button
-                  key={o.n}
-                  type="button"
-                  role="radio"
-                  aria-checked={perRoom === o.n}
-                  aria-label={`${o.n} per room`}
-                  onClick={() => setPerRoom(o.n)}
-                  className={`flex h-9 flex-col items-center justify-center rounded-md border text-[10px] font-bold leading-tight transition ${
-                    perRoom === o.n ? "border-brand bg-brand text-white" : "border-slate-200 bg-slate-50 text-slate-600 hover:border-brand hover:text-brand"
-                  }`}
-                >
-                  <span className="text-sm font-black leading-none">{o.n}</span>
-                  {o.label !== String(o.n) && <span className="mt-0.5 font-semibold opacity-80">{o.label}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 3. Rooms needed */}
-          <div className="flex flex-col rounded-lg border border-slate-200 bg-white p-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Rooms needed</span>
-            <div className="mt-auto flex items-end gap-1.5 pt-2">
-              <span className="text-2xl font-black leading-none tabular-nums text-slate-900">{needed}</span>
-              <span className="pb-0.5 text-[11px] font-semibold text-slate-500">
-                room{needed === 1 ? "" : "s"} · {perRoom} per room
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => autoPick(needed)}
-              disabled={!needed}
-              className="mt-2 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-md bg-brand text-xs font-bold text-white hover:bg-brand-dark disabled:opacity-40"
-            >
-              <Wand2 className="h-4 w-4" /> Pick {needed || ""} Room{needed === 1 ? "" : "s"}
-            </button>
-          </div>
-
-          {/* 4. Selected */}
-          <div className={`flex flex-col rounded-lg border border-slate-200 bg-white p-3 ${selected.size >= needed && needed > 0 ? "border-emerald-300 bg-emerald-50/50" : ""}`}>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Selected</span>
-            <div className="mt-auto flex items-end gap-1.5 pt-2">
-              <span className="text-2xl font-black leading-none tabular-nums text-slate-900">{selected.size}</span>
-              <span className="pb-0.5 text-[11px] font-semibold text-slate-500">of {totalFree} free</span>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100" aria-hidden>
-              <div
-                className={`h-full rounded-full ${selected.size >= needed && needed > 0 ? "bg-emerald-500" : "bg-brand"}`}
-                style={{ width: `${needed ? Math.min(100, (selected.size / needed) * 100) : 0}%` }}
-              />
-            </div>
-            <span className={`mt-1 text-[10.5px] font-semibold ${selected.size >= needed && needed > 0 ? "text-emerald-700" : "text-slate-500"}`}>
-              {selected.size >= needed && needed > 0 ? "All rooms selected ✓" : "or tap rooms below"}
-            </span>
-          </div>
-        </div>
+        <p className="text-xs text-slate-500">
+          Tap the rooms to book ·{" "}
+          <b className={selected.size ? "text-brand" : "text-slate-700"}>
+            {selected.size} selected
+          </b>{" "}
+          · {totalFree} free
+        </p>
       )}
 
       {types.map((t) => {

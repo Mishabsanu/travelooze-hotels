@@ -50,7 +50,7 @@ export function GuestFields() {
 
   return (
     <>
-      <FormField label="Guest Phone" error={err("phone")}>
+      <FormField label="Guest Phone" hint="Returning guests fill in" error={err("phone")}>
         <div className="relative">
           <input
             type="tel"
@@ -80,28 +80,22 @@ export function GuestFields() {
           onBlur={() => setFieldTouched("guestName", true)}
         />
       </FormField>
-      <div className="flex items-end">
-        {found ? (
-          <div className="w-full flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-            <History className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
-            <div className="min-w-0">
-              <p className="font-bold">
-                Returning guest · {found.stays} stay{found.stays === 1 ? "" : "s"}
-              </p>
-              <p className="truncate">
-                {found.name} · last came {formatDay(found.lastCheckIn)}
-              </p>
-              {values.guestName.trim() && values.guestName.trim() !== found.name && (
-                <button type="button" className="mt-0.5 font-bold underline" onClick={() => setFieldValue("guestName", found.name)}>
-                  Use “{found.name}”
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <p className="text-xs text-slate-400 pb-2.5">Type the phone first: a guest who stayed before is filled in automatically.</p>
-        )}
-      </div>
+      {found && (
+        <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+          <History className="w-4 h-4 shrink-0 text-emerald-600" />
+          <b>
+            Returning guest · {found.stays} stay{found.stays === 1 ? "" : "s"}
+          </b>
+          <span>
+            {found.name} · last came {formatDay(found.lastCheckIn)}
+          </span>
+          {values.guestName.trim() && values.guestName.trim() !== found.name && (
+            <button type="button" className="font-bold underline" onClick={() => setFieldValue("guestName", found.name)}>
+              Use “{found.name}”
+            </button>
+          )}
+        </div>
+      )}
     </>
   );
 }

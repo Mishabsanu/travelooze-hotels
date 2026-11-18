@@ -93,7 +93,7 @@ function Done({ label, at }: { label: string; at?: string }) {
 
 function Column({ title, icon, tone, count, all, empty, children }: { title: string; icon: ReactNode; tone: string; count: number; all: string; empty: string; children: ReactNode }) {
   return (
-    <section className="bg-white border border-line rounded-xl overflow-hidden flex flex-col">
+    <section className="bg-white border border-slate-200 rounded-xl overflow-hidden flex flex-col shadow-xs">
       <header className="px-4 py-3 border-b border-line flex items-center gap-2">
         <span className={`w-8 h-8 rounded-lg border flex items-center justify-center ${tone}`}>{icon}</span>
         <h2 className="text-sm font-bold text-slate-800">{title}</h2>
@@ -103,7 +103,10 @@ function Column({ title, icon, tone, count, all, empty, children }: { title: str
         </Link>
       </header>
       {count === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-slate-400">{empty}</p>
+        <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+          <span className={`w-11 h-11 rounded-full border flex items-center justify-center opacity-70 ${tone}`}>{icon}</span>
+          <p className="text-sm text-slate-400">{empty}</p>
+        </div>
       ) : (
         <ul className="divide-y divide-line max-h-[420px] overflow-y-auto">{children}</ul>
       )}

@@ -98,7 +98,7 @@ export function OccupancyEditor({
             <BedSingle className="w-3.5 h-3.5 text-brand" /> {totalBeds} extra bed{totalBeds === 1 ? "" : "s"}
           </span>
         )}
-        <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${auto ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>{auto ? "AUTO" : "MANUAL"}</span>
+
         {!auto && (
           <button type="button" onClick={() => setAuto(true)} className="inline-flex items-center gap-1 font-bold text-slate-600 hover:text-brand">
             <RotateCcw className="w-3.5 h-3.5" /> Spread pax again
