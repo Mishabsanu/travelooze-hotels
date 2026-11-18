@@ -1,15 +1,12 @@
 import "server-only";
 import type { Types } from "mongoose";
 import { MEAL_PLANS, type MealPlan } from "@/lib/constants";
-import { can } from "@/lib/permissions";
 import type { SessionUser } from "@/lib/types";
 import { hotelScope } from "../auth/session";
-import { Agent } from "../models/Agent";
 import { Booking } from "../models/Booking";
 import { Hotel } from "../models/Hotel";
 import { Room } from "../models/Room";
 import { RoomNight } from "../models/RoomNight";
-import { agentBalances } from "./agent.service";
 import { hotelIdFilter } from "./hotel.service";
 import { todayIST } from "./stay";
 
@@ -26,11 +23,10 @@ export interface HotelTonight {
 export interface Overview {
   today: string;
   hotels: HotelTonight[];
-  totals: { rooms: number; occupied: number; arrivals: number; departures: number; inHouse: number; overdueArrivals: number };
+  /** arrivals / departures: all of today's (done + to do); *Done: already checked in / out */
+  totals: { rooms: number; occupied: number; arrivals: number; arrivalsDone: number; departures: number; departuresDone: number; inHouse: number; overdueArrivals: number };
   /** Money not yet paid on every open booking (room + extras − paid): due now (staying / left) + upcoming (not arrived yet) */
   pending: { amount: number; bookings: number; now: number; upcoming: number };
-  month?: { revenue: number; bookings: number; collected: number };
-  agentDues?: { _id: string; name: string; due: number; creditLimit: number }[];
 }
 
 const countBy = (rows: { _id: Types.ObjectId; n: number }[]) => new Map(rows.map((r) => [String(r._id), r.n]));
@@ -38,20 +34,23 @@ const countBy = (rows: { _id: Types.ObjectId; n: number }[]) => new Map(rows.map
 export async function getOverview(user: SessionUser): Promise<Overview> {
   const today = todayIST();
   const scope = hotelScope(user);
-  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
 
-  const [hotels, rooms, occupied, arrivals, departures, inHouse, overdueArrivals, month, agentDues, pending] = await Promise.all([
+  // Check-out times are moments: today in India runs 18:30 UTC (yesterday) → 18:30 UTC
+  const dayStart = new Date(today.getTime() - 5.5 * 3600_000);
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000);
+  const [hotels, rooms, occupied, arrivals, departures, inHouse, overdueArrivals, pending, arrivalsDone, departuresDone] = await Promise.all([
     Hotel.find({ ...hotelIdFilter(user), status: "active" }).sort({ name: 1 }).select("name").lean(),
     Room.aggregate([{ $match: { ...scope, status: "active" } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
     RoomNight.aggregate([{ $match: { ...scope, date: today } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
-    Booking.aggregate([{ $match: { ...scope, status: "confirmed", checkIn: today } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
-    Booking.aggregate([{ $match: { ...scope, status: "checked_in", checkOut: { $lte: today } } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
+    // Arriving today: everyone booked for today (still to come + already checked in / out)
+    Booking.aggregate([{ $match: { ...scope, ...arrivalsToday(today) } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
+    // Leaving today: due out (still here) + already checked out today (also early leavers)
+    Booking.aggregate([{ $match: { ...scope, ...departuresToday(today, dayStart, dayEnd) } }, { $group: { _id: "$hotel", n: { $sum: 1 } } }]),
     Booking.find({ ...scope, status: "checked_in" }).select("hotel adults children mealPlan").lean(),
     Booking.countDocuments({ ...scope, status: "confirmed", checkIn: { $lt: today } }),
-    // Revenue and agent dues in the same parallel batch (one wait instead of three)
-    can(user, "report", "view") ? monthRevenue(scope, monthStart) : undefined,
-    can(user, "agent", "view") ? topAgentDues(scope) : undefined,
     pendingDues(scope),
+    Booking.countDocuments({ ...scope, checkIn: today, status: { $in: ["checked_in", "checked_out"] } }),
+    Booking.countDocuments({ ...scope, status: "checked_out", checkedOutAt: { $gte: dayStart, $lt: dayEnd } }),
   ]);
   const [rc, oc, ac, dc] = [rooms, occupied, arrivals, departures].map(countBy);
 
@@ -78,16 +77,25 @@ export async function getOverview(user: SessionUser): Promise<Overview> {
   const sum = (k: "rooms" | "occupied" | "arrivals" | "departures") => list.reduce((s, h) => s + h[k], 0);
 
   const overview: Overview = {
-    month,
     pending,
-    agentDues,
     today: today.toISOString(),
     hotels: list,
-    totals: { rooms: sum("rooms"), occupied: sum("occupied"), arrivals: sum("arrivals"), departures: sum("departures"), inHouse: inHouse.length, overdueArrivals },
+    totals: { rooms: sum("rooms"), occupied: sum("occupied"), arrivals: sum("arrivals"), arrivalsDone, departures: sum("departures"), departuresDone, inHouse: inHouse.length, overdueArrivals },
   };
 
   return overview;
 }
+
+/** Bookings arriving today, whether they came already or not */
+export const arrivalsToday = (today: Date) => ({ checkIn: today, status: { $in: ["confirmed", "checked_in", "checked_out"] } });
+
+/** Bookings leaving today: still in the house and due out, or already checked out today */
+export const departuresToday = (today: Date, dayStart: Date, dayEnd: Date) => ({
+  $or: [
+    { status: "checked_in", checkOut: { $lte: today } },
+    { status: "checked_out", checkedOutAt: { $gte: dayStart, $lt: dayEnd } },
+  ],
+});
 
 async function pendingDues(scope: Record<string, unknown>): Promise<Overview["pending"]> {
   const rows = await Booking.aggregate<{ _id: string; amount: number; bookings: number }>([
@@ -103,23 +111,4 @@ async function pendingDues(scope: Record<string, unknown>): Promise<Overview["pe
     now: get("now"),
     upcoming: get("upcoming"),
   };
-}
-
-async function monthRevenue(scope: Record<string, unknown>, monthStart: Date): Promise<Overview["month"]> {
-  const [m] = await Booking.aggregate<{ revenue: number; bookings: number; collected: number }>([
-    { $match: { ...scope, status: { $ne: "cancelled" }, checkIn: { $gte: monthStart } } },
-    { $group: { _id: null, revenue: { $sum: { $add: ["$total", { $ifNull: ["$extrasTotal", 0] }] } }, bookings: { $sum: 1 }, collected: { $sum: { $sum: "$payments.amount" } } } },
-  ]);
-  return { revenue: m?.revenue ?? 0, bookings: m?.bookings ?? 0, collected: m?.collected ?? 0 };
-}
-
-async function topAgentDues(scope: Record<string, unknown>): Promise<Overview["agentDues"]> {
-  const balances = await agentBalances(undefined, scope);
-  const ids = [...balances.entries()].filter(([, b]) => b.due > 0).map(([id]) => id);
-  if (!ids.length) return [];
-  const agents = await Agent.find({ _id: { $in: ids } }).select("name creditLimit").lean();
-  return agents
-    .map((a) => ({ _id: String(a._id), name: a.name, creditLimit: a.creditLimit, due: balances.get(String(a._id))!.due }))
-    .sort((a, b) => b.due - a.due)
-    .slice(0, 8);
 }

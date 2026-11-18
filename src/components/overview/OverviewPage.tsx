@@ -1,6 +1,8 @@
 import { BarChart3, BedDouble, IndianRupee, LogIn, LogOut, Plus, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import type { SessionUser } from "@/lib/types";
+import { todayIST } from "@/server/services/stay";
 import { canBooking, canListBookings } from "@/lib/bookingAccess";
 import { formatDay, formatINR } from "@/lib/format";
 import { can } from "@/lib/permissions";
@@ -14,19 +16,15 @@ const BOOKINGS = "/dashboard/front-office/bookings";
 
 /**
  * Home: what the front desk needs today, in plain words.
- * 4 numbers → who is coming / leaving / staying (with the buttons) → kitchen count. Charts live on their own page.
+ * Streams in three parts so nothing waits for the slowest query:
+ * greeting + buttons (instant) → 4 numbers + meals → who is coming / leaving / staying.
  */
 export async function OverviewPage() {
   const user = await requireUser();
   const bookings = canListBookings(user);
   const reports = can(user, "report", "view");
-  // Today's lists: who arrives, who leaves, who is in the house (50 each is more than a day's work)
-  const stay = (s: string) => (bookings ? listBookings(parseListQuery({ stay: s, limit: "50", sort: "checkIn" }, ["stay"]), user).then((r) => r.items) : Promise.resolve([]));
-  const [o, arriving, leaving, inHouse] = await Promise.all([getOverview(user), stay("arrivals"), stay("departures"), stay("inhouse")]);
   const canWalkin = canBooking(user, "walkin", "create");
   const canAgent = canBooking(user, "agent", "create");
-  const free = o.totals.rooms - o.totals.occupied;
-  const meals = o.hotels.reduce((m, h) => ({ b: m.b + h.meals.breakfast, l: m.l + h.meals.lunch, d: m.d + h.meals.dinner }), { b: 0, l: 0, d: 0 });
   const hour = Number(new Date().toLocaleString("en-IN", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }));
   const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
@@ -38,10 +36,7 @@ export async function OverviewPage() {
           <h1 className="text-xl font-bold text-slate-900">
             {hello}, {user.name.split(" ")[0]}
           </h1>
-          <p className="text-sm text-slate-500">
-            {formatDay(o.today)}
-            {o.hotels.length === 1 ? ` · ${o.hotels[0].name}` : o.hotels.length > 1 ? ` · ${o.hotels.length} hotels` : ""}
-          </p>
+          <p className="text-sm text-slate-500">{formatDay(todayIST())}</p>
         </div>
         {(canWalkin || canAgent) && (
           <div className="flex flex-wrap gap-2">
@@ -59,6 +54,30 @@ export async function OverviewPage() {
         )}
       </div>
 
+      <Suspense fallback={<NumbersSkeleton />}>
+        <HomeNumbers user={user} bookings={bookings} reports={reports} />
+      </Suspense>
+
+      {bookings && (
+        <Suspense fallback={<DeskSkeleton />}>
+          <HomeDesk user={user} />
+        </Suspense>
+      )}
+
+      {!can(user, "booking", "view") && !can(user, "agent_booking", "view") && !can(user, "agent", "view") && (
+        <p className="text-sm text-slate-500">Your role has no booking permissions yet. Ask an admin to update your role.</p>
+      )}
+    </>
+  );
+}
+
+/** 4 numbers, the missed-arrivals warning and the meals line (one overview query). */
+async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; bookings: boolean; reports: boolean }) {
+  const o = await getOverview(user);
+  const free = o.totals.rooms - o.totals.occupied;
+  const meals = o.hotels.reduce((m, h) => ({ b: m.b + h.meals.breakfast, l: m.l + h.meals.lunch, d: m.d + h.meals.dinner }), { b: 0, l: 0, d: 0 });
+  return (
+    <>
       {/* Four numbers, plain words */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <Big
@@ -74,7 +93,7 @@ export async function OverviewPage() {
           tone="bg-sky-50 text-sky-700"
           label="Coming today"
           value={`${o.totals.arrivals}`}
-          sub={o.totals.arrivals ? "guests still to check in" : "everyone has arrived"}
+          sub={o.totals.arrivals ? `${o.totals.arrivalsDone} checked in · ${o.totals.arrivals - o.totals.arrivalsDone} still to come` : "no arrivals today"}
           href={bookings ? `${BOOKINGS}?stay=arrivals` : undefined}
         />
         <Big
@@ -82,7 +101,7 @@ export async function OverviewPage() {
           tone="bg-amber-50 text-amber-700"
           label="Leaving today"
           value={`${o.totals.departures}`}
-          sub={o.totals.departures ? "guests still to check out" : "nobody left to check out"}
+          sub={o.totals.departures ? `${o.totals.departuresDone} checked out · ${o.totals.departures - o.totals.departuresDone} still here` : "no departures today"}
           href={bookings ? `${BOOKINGS}?stay=departures` : undefined}
         />
         <Big
@@ -102,9 +121,6 @@ export async function OverviewPage() {
         </Link>
       )}
 
-      {/* Who is coming, leaving, staying — with the buttons */}
-      {bookings && <TodayDesk arriving={arriving} leaving={leaving} inHouse={inHouse} canCheck={can(user, "check_in_out", "update")} canPay={can(user, "payment", "create")} />}
-
       {/* Small extras */}
       <div className="flex flex-wrap gap-3 text-sm">
         <span className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 text-slate-700">
@@ -122,11 +138,51 @@ export async function OverviewPage() {
           </Link>
         )}
       </div>
-
-      {!can(user, "booking", "view") && !can(user, "agent_booking", "view") && !can(user, "agent", "view") && (
-        <p className="text-sm text-slate-500">Your role has no booking permissions yet. Ask an admin to update your role.</p>
-      )}
     </>
+  );
+}
+
+/** Who is coming, leaving and staying today, with the Check In / Check Out / Payment buttons. */
+async function HomeDesk({ user }: { user: SessionUser }) {
+  // 50 each is more than a day's work
+  const stay = (s: string) => listBookings(parseListQuery({ stay: s, limit: "50", sort: "checkIn" }, ["stay"]), user).then((r) => r.items);
+  const [arriving, leaving, inHouse] = await Promise.all([stay("arrivals_all"), stay("departures_all"), stay("inhouse")]);
+  return <TodayDesk arriving={arriving} leaving={leaving} inHouse={inHouse} canCheck={can(user, "check_in_out", "update")} canPay={can(user, "payment", "create")} />;
+}
+
+const bone = "animate-pulse rounded bg-slate-200/80";
+
+function NumbersSkeleton() {
+  return (
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-busy="true" aria-label="Loading">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+          <div className={`${bone} h-4 w-32`} />
+          <div className={`${bone} h-8 w-20`} />
+          <div className={`${bone} h-3 w-40`} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DeskSkeleton() {
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4" aria-busy="true" aria-label="Loading">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="bg-white border border-line rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-line">
+            <div className={`${bone} h-5 w-36`} />
+          </div>
+          {[0, 1, 2].map((r) => (
+            <div key={r} className="px-4 py-3 border-b border-line last:border-b-0 space-y-2">
+              <div className={`${bone} h-3.5 w-1/2`} />
+              <div className={`${bone} h-3 w-2/3`} />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 

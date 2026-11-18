@@ -23,6 +23,7 @@ import { assertHotelAccess } from "../hotel.service";
 import { addDays, nightsBetween, parseDay, todayIST } from "../stay";
 import { holdRoomNights, releaseRoomNights } from "./availability";
 import { buildLines } from "./rooming";
+import { arrivalsToday, departuresToday } from "../overview.service";
 
 const POPULATE = [
   { path: "hotel", select: "name code address phone gstin checkInTime checkOutTime" },
@@ -77,6 +78,12 @@ export async function listBookings(query: ListQuery, user: SessionUser, forceSou
     if (f.stay === "arrivals") Object.assign(filter, { checkIn: today, status: "confirmed" });
     else if (f.stay === "departures") Object.assign(filter, { checkOut: { $lte: today }, status: "checked_in" });
     else if (f.stay === "inhouse") filter.status = "checked_in";
+    // Home: today's movements including the ones already done
+    else if (f.stay === "arrivals_all") Object.assign(filter, arrivalsToday(today));
+    else if (f.stay === "departures_all") {
+      const start = new Date(today.getTime() - 5.5 * 3600_000);
+      Object.assign(filter, departuresToday(today, start, new Date(start.getTime() + 86_400_000)));
+    }
     else if (f.stay === "upcoming") Object.assign(filter, { checkIn: { $gt: today }, status: "confirmed" });
   }
   if (f.date && /^\d{4}-\d{2}-\d{2}$/.test(f.date)) {

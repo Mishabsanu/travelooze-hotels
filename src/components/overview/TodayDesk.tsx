@@ -26,10 +26,12 @@ export function TodayDesk({ arriving, leaving, inHouse, canCheck, canPay }: Prop
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-      <Column title="Arriving today" icon={<LogIn className="w-4 h-4" />} tone="text-sky-700 bg-sky-50 border-sky-200" count={arriving.length} all={`${BOOKING_BASE}?stay=arrivals`} empty="No more arrivals today">
+      <Column title="Arriving today" icon={<LogIn className="w-4 h-4" />} tone="text-sky-700 bg-sky-50 border-sky-200" count={arriving.length} all={`${BOOKING_BASE}?stay=arrivals`} empty="No arrivals today">
         {arriving.map((b) => (
           <Row key={b._id} b={b}>
-            {canCheck && (
+            {b.status !== "confirmed" ? (
+              <Done label="Checked in" at={b.checkedInAt} />
+            ) : canCheck && (
               <Link href={`${BOOKING_BASE}/${b._id}?do=checkin`} className={`${actionBtn} bg-brand text-white hover:bg-brand-dark`}>
                 <LogIn className="w-4 h-4" /> Check In
               </Link>
@@ -38,10 +40,12 @@ export function TodayDesk({ arriving, leaving, inHouse, canCheck, canPay }: Prop
         ))}
       </Column>
 
-      <Column title="Leaving today" icon={<LogOut className="w-4 h-4" />} tone="text-amber-700 bg-amber-50 border-amber-200" count={leaving.length} all={`${BOOKING_BASE}?stay=departures`} empty="No more departures today">
+      <Column title="Leaving today" icon={<LogOut className="w-4 h-4" />} tone="text-amber-700 bg-amber-50 border-amber-200" count={leaving.length} all={`${BOOKING_BASE}?stay=departures`} empty="No departures today">
         {leaving.map((b) => (
           <Row key={b._id} b={b} showDue>
-            {canCheck && (
+            {b.status === "checked_out" ? (
+              <Done label="Checked out" at={b.checkedOutAt} />
+            ) : canCheck && (
               <Link href={`${BOOKING_BASE}/${b._id}?do=checkout`} className={`${actionBtn} bg-rail text-white hover:bg-rail-active`}>
                 <LogOut className="w-4 h-4" /> Check Out
               </Link>
@@ -62,6 +66,17 @@ export function TodayDesk({ arriving, leaving, inHouse, canCheck, canPay }: Prop
         ))}
       </Column>
     </div>
+  );
+}
+
+/** Already done today: a green tick and the time instead of the button */
+function Done({ label, at }: { label: string; at?: string }) {
+  const time = at ? new Date(at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }) : "";
+  return (
+    <span className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 h-9 text-xs font-bold text-emerald-700">
+      ✓ {label}
+      {time && <span className="font-medium">{time}</span>}
+    </span>
   );
 }
 
