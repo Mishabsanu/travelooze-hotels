@@ -150,19 +150,20 @@ export async function getRoomBoard(hotelId: string, today: Date): Promise<BoardR
       .lean(),
     RoomType.find({ hotel: hotelId }).select("name").lean(),
     RoomNight.find({ hotel: hotelId, date: today })
-      .populate({ path: "booking", select: "bookingNo status source guest.name checkIn checkOut arrivalTime departureTime total payments.amount" })
+      .populate({ path: "booking", select: "bookingNo status source guest.name checkIn checkOut arrivalTime departureTime total extrasTotal payments.amount" })
       .lean<PopulatedNight[]>(),
     // Checked-in guests whose stay ends today (their room-night for tonight is no longer held)
     Booking.find({ hotel: hotelId, status: "checked_in", checkOut: { $lte: today } })
-      .select("bookingNo source guest.name checkOut arrivalTime departureTime total payments.amount rooms.room")
+      .select("bookingNo source guest.name checkOut arrivalTime departureTime total extrasTotal payments.amount rooms.room")
       .lean(),
   ]);
   const typeName = new Map(types.map((t) => [String(t._id), t.name]));
   const night = new Map(tonight.map((n) => [String(n.room), n.booking]));
   const out = new Map<string, (typeof leaving)[number]>();
   for (const b of leaving) for (const r of b.rooms) out.set(String(r.room), b);
-  const balanceOf = (b: { total: number; payments?: { amount: number }[] }) =>
-    Math.round((b.total - (b.payments ?? []).reduce((s, p) => s + p.amount, 0)) * 100) / 100;
+  // Room + extra charges − paid (same as the booking page)
+  const balanceOf = (b: { total: number; extrasTotal?: number; payments?: { amount: number }[] }) =>
+    Math.round((b.total + (b.extrasTotal ?? 0) - (b.payments ?? []).reduce((s, p) => s + p.amount, 0)) * 100) / 100;
 
   return rooms.map((r) => {
     const id = String(r._id);

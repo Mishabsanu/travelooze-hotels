@@ -111,7 +111,7 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
           value={formatINR(o.pending.amount)}
           sub={o.pending.bookings ? `Due now ${formatINR(o.pending.now)} · Upcoming ${formatINR(o.pending.upcoming)}` : "Everyone has paid"}
           danger={o.pending.amount > 0}
-          href={reports ? "/dashboard/reports/daily" : bookings ? BOOKINGS : undefined}
+          href={bookings ? "/dashboard/overview/rooms?show=collect" : undefined}
         />
       </div>
 
@@ -127,6 +127,11 @@ async function HomeNumbers({ user, bookings, reports }: { user: SessionUser; boo
           <UtensilsCrossed className="w-4 h-4 text-brand" />
           <b>Meals today:</b> Breakfast {meals.b} · Lunch {meals.l} · Dinner {meals.d}
         </span>
+        {bookings && (
+          <Link href="/dashboard/overview/rooms" className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold text-brand hover:bg-brand-light">
+            <BedDouble className="w-4 h-4" /> Room report: who pays what →
+          </Link>
+        )}
         {reports && (
           <Link href="/dashboard/overview/analytics" className="inline-flex items-center gap-2 rounded-xl border border-line bg-white px-4 py-2.5 font-semibold text-brand hover:bg-brand-light">
             <BarChart3 className="w-4 h-4" /> Sales charts →

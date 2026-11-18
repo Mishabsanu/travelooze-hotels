@@ -1,22 +1,19 @@
 "use client";
 
 import { APP_NAME } from "@/lib/brand";
-import { Menu, Plus } from "lucide-react";
+import { Menu } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BOOKING_BASE } from "@/components/bookings/bookingConfig";
 import { useSession } from "@/components/providers/SessionProvider";
-import { canBooking, canListBookings } from "@/lib/bookingAccess";
+import { canListBookings } from "@/lib/bookingAccess";
 import { GlobalSearch } from "./GlobalSearch";
 import { findActiveModule, isActivePath, type NavModule } from "./navigation";
 import { UserMenu } from "./UserMenu";
 
-/** Three tiers, as in Proserve ERP: brand bar (search + New Booking) → module tabs → active module's sub-tabs. */
+/** Three tiers, as in Proserve ERP: brand bar (search) → module tabs → active module's sub-tabs. */
 export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: () => void }) {
   const pathname = usePathname() || "";
   const user = useSession();
-  const canWalkin = canBooking(user, "walkin", "create");
-  const canAgent = canBooking(user, "agent", "create");
   const activeModule =
     findActiveModule(modules, pathname) ?? modules.find((m) => m.id === "home") ?? modules[0];
 
@@ -35,26 +32,6 @@ export function TopHeader({ modules, onMenu }: { modules: NavModule[]; onMenu: (
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3.5 shrink-0">
-          {canWalkin && (
-            <Link
-              href={`${BOOKING_BASE}/new`}
-              title="New walk-in booking"
-              className="inline-flex items-center gap-1.5 h-8 px-2.5 sm:px-3.5 rounded-full bg-white text-brand text-xs font-bold hover:bg-brand-light shadow-xs"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Walk-in</span>
-            </Link>
-          )}
-          {canAgent && (
-            <Link
-              href={`${BOOKING_BASE}/new-agent`}
-              title="New agent booking"
-              className="hidden lg:inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full border border-white/40 text-white text-xs font-bold hover:bg-white/10"
-            >
-              <Plus className="w-4 h-4" />
-              Agent Booking
-            </Link>
-          )}
           <UserMenu />
         </div>
       </header>

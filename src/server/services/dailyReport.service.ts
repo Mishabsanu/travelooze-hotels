@@ -6,6 +6,7 @@ import { canAccessHotel, hotelScope } from "../auth/session";
 import { Booking } from "../models/Booking";
 import { Room } from "../models/Room";
 import { RoomNight } from "../models/RoomNight";
+import { bookingMoney } from "./bookingMoney";
 import { addDays, parseDay, todayIST } from "./stay";
 
 const IST_OFFSET = 5.5 * 3600_000;
@@ -92,17 +93,7 @@ type Lean = {
 
 const roomsOf = (b: Lean) => b.rooms.map((r) => r.roomNumber).join(", ");
 
-/** Same money rules as the booking page: grand total, paid, balance, and who owes it. */
-function money(b: Lean) {
-  const extras = b.extrasTotal ?? 0;
-  const grandTotal = r2(b.total + extras);
-  const paid = r2((b.payments ?? []).reduce((s, p) => s + p.amount, 0));
-  const balance = r2(grandTotal - paid);
-  const guestPaid = (b.payments ?? []).filter((p) => p.paidBy === "guest").reduce((s, p) => s + p.amount, 0);
-  const guestDue = b.billTo === "agent" ? Math.max(0, r2(extras - guestPaid)) : Math.max(0, balance);
-  const agentDue = b.billTo === "agent" ? Math.max(0, r2(balance - guestDue)) : 0;
-  return { grandTotal, paid, balance, guestDue, agentDue };
-}
+const money = (b: Lean) => bookingMoney(b);
 
 function move(b: Lean): DailyMove {
   return {
