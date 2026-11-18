@@ -20,7 +20,7 @@ export async function findReturningGuest(phone: string, user: SessionUser): Prom
   const digits = phone.replace(/\D/g, "").slice(-10);
   if (digits.length < 10) return null;
   // Allow spaces / dashes between the digits of a stored number
-  const rx = new RegExp(`${digits.split("").map(escapeRegex).join("[\s\-()]*")}$`);
+  const rx = new RegExp(`${digits.split("").map(escapeRegex).join(String.raw`\D*`)}$`);
   const filter = { ...hotelScope(user), "guest.phone": rx, "guest.name": { $ne: "" } };
   const [last, stays] = await Promise.all([
     BookingModel.findOne(filter).sort({ checkIn: -1 }).select("guest checkIn").lean(),

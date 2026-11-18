@@ -110,7 +110,8 @@ export function BookingForm(p: BookingFormProps) {
         qty: 1,
         rate: Number(c.amount),
         gstPercent: c.gstPercent,
-        date: "",
+        // Dated on the arrival day (today for walk-ins), so a future stay's extras count in its own month
+        date: booking.checkIn.slice(0, 10),
       });
     }
     return booking;
